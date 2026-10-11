@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Play, Download, Copy, Check, X, Server, ExternalLink, Loader2, HardDrive, Star } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Play, Download, Copy, Check, X, HardDrive, Star, Loader2, ExternalLink } from "lucide-react";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 import { DhakaFlixStream } from "@/lib/dhakaflix";
+import { MoviePosterPlaceholder } from "@/components/movie-poster-placeholder";
 
 interface StreamModalProps {
   movie: CatalogMovie | null;
@@ -15,9 +16,24 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
   const [streams, setStreams] = useState<DhakaFlixStream[]>([]);
   const [loading, setLoading] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [imgError, setImgError] = useState(false);
+
+  // Close on Escape key
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    },
+    [onClose]
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
 
   useEffect(() => {
     if (!movie) return;
+    setImgError(false);
     setLoading(true);
 
     fetch(`/api/media/streams?title=${encodeURIComponent(movie.title)}&year=${movie.year}`)
@@ -36,39 +52,63 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+    <div 
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
       <div 
-        className="relative w-full max-w-xl overflow-hidden rounded-lg bg-[#141416] border border-white/10 shadow-2xl flex flex-col max-h-[90vh]"
+        className="relative w-full max-w-xl overflow-hidden rounded-t-3xl sm:rounded-2xl bg-[#141416] border-t sm:border border-white/10 shadow-2xl flex flex-col max-h-[88vh] sm:max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Mobile drag handle indicator */}
+        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mt-2.5 sm:hidden" />
+
         {/* Top Header */}
-        <div className="p-4 border-b border-white/10 flex items-center justify-between bg-[#19191c]">
-          <div className="flex items-center gap-2">
+        <div className="p-3.5 sm:p-4 border-b border-white/10 flex items-center justify-between bg-[#19191c]">
+          <div className="flex items-center gap-2 min-w-0 pr-2">
             <span className="bg-[#e50914] text-white text-[10px] font-bold px-2 py-0.5 rounded">
               {movie.quality}
             </span>
-            <h2 className="text-sm font-bold text-white truncate max-w-md">{movie.title} ({movie.year})</h2>
+            <h2 id="modal-title" className="text-xs sm:text-sm font-bold text-white truncate">
+              {movie.title} ({movie.year})
+            </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded text-neutral-400 hover:text-white hover:bg-white/10 transition"
+            aria-label="Close dialog"
+            className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 min-w-[32px] min-h-[32px] flex items-center justify-center"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+        <div className="p-4 sm:p-5 space-y-3.5 sm:space-y-4 overflow-y-auto custom-scrollbar flex-1 pb-8 sm:pb-5">
           {/* Media Info snippet */}
-          <div className="flex gap-4">
-            <img
-              src={movie.poster || "/placeholder-poster.png"}
-              alt={movie.title}
-              className="w-20 h-28 object-cover rounded bg-black shrink-0 border border-white/10"
-            />
-            <div className="space-y-1.5 min-w-0 flex-1">
-              <h3 className="text-base font-bold text-white leading-tight">{movie.title}</h3>
-              <div className="flex items-center gap-2 text-xs text-neutral-400">
+          <div className="flex gap-3 sm:gap-4">
+            {!movie.poster || imgError ? (
+              <MoviePosterPlaceholder
+                title={movie.title}
+                year={movie.year}
+                quality={movie.quality}
+                category={movie.category}
+                size="modal"
+                className="w-16 h-24 sm:w-20 sm:h-28"
+              />
+            ) : (
+              <img
+                src={movie.poster}
+                alt={movie.title}
+                className="w-16 h-24 sm:w-20 sm:h-28 object-cover rounded-lg bg-black shrink-0 border border-white/10 shadow"
+                onError={() => setImgError(true)}
+              />
+            )}
+            <div className="space-y-1 sm:space-y-1.5 min-w-0 flex-1">
+              <h3 className="text-sm sm:text-base font-bold text-white leading-tight">{movie.title}</h3>
+              <div className="flex items-center gap-2 text-[11px] sm:text-xs text-neutral-400 flex-wrap">
                 <span>{movie.year}</span>
                 <span>•</span>
                 <span>{movie.category}</span>
@@ -82,7 +122,7 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                 ) : null}
               </div>
               {movie.overview && (
-                <p className="text-xs text-neutral-400 line-clamp-3 leading-relaxed">
+                <p className="text-[11px] sm:text-xs text-neutral-400 line-clamp-2 sm:line-clamp-3 leading-relaxed">
                   {movie.overview}
                 </p>
               )}
@@ -90,7 +130,7 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
           </div>
 
           {/* DhakaFlix Available Streams */}
-          <div className="space-y-2 pt-2 border-t border-white/10">
+          <div className="space-y-2.5 pt-2 border-t border-white/10">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300 flex items-center gap-1.5">
                 <HardDrive className="w-3.5 h-3.5 text-[#e50914]" />
@@ -100,18 +140,18 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
             </div>
 
             {loading ? (
-              <div className="p-6 text-center text-xs text-neutral-400 space-y-2 bg-[#18181b] rounded border border-white/5">
-                <Loader2 className="w-4 h-4 animate-spin mx-auto text-[#e50914]" />
-                <p>Scanning DhakaFlix servers...</p>
+              <div className="p-6 text-center text-xs text-neutral-400 space-y-2 bg-[#18181b] rounded-xl border border-white/5">
+                <Loader2 className="w-5 h-5 animate-spin mx-auto text-[#e50914]" />
+                <p>Scanning DhakaFlix servers for video files...</p>
               </div>
             ) : streams.length === 0 ? (
-              <div className="p-5 text-center text-xs text-neutral-400 space-y-2 bg-[#18181b] rounded border border-white/5">
+              <div className="p-5 text-center text-xs text-neutral-400 space-y-2.5 bg-[#18181b] rounded-xl border border-white/5">
                 <p>Direct video file lookup in progress or folder moved.</p>
                 <a
                   href={movie.serverUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-white/10 hover:bg-white/15 text-white text-xs transition"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs transition"
                 >
                   <ExternalLink className="w-3 h-3" />
                   <span>Browse Folder on DhakaFlix</span>
@@ -122,11 +162,11 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                 {streams.map((stream, idx) => (
                   <div
                     key={idx}
-                    className="p-3 rounded bg-[#18181b] hover:bg-[#202024] border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition"
+                    className="p-3.5 rounded-xl bg-[#18181b] hover:bg-[#202024] border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition"
                   >
-                    <div className="space-y-0.5 min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="bg-[#e50914]/20 text-red-400 text-[10px] font-bold px-1.5 py-0.5 rounded border border-[#e50914]/30">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="bg-[#e50914]/20 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded border border-[#e50914]/30">
                           {stream.quality}
                         </span>
                         <span className="text-[11px] text-neutral-400">
@@ -144,19 +184,19 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => onPlayVlc(stream.streamUrl, movie.title)}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded bg-[#e50914] hover:bg-red-700 text-white text-xs font-bold shadow transition active:scale-95"
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#e50914] hover:bg-red-700 text-white text-xs font-bold shadow transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                       >
-                        <Play className="w-3 h-3 fill-current" />
+                        <Play className="w-3.5 h-3.5 fill-current" />
                         <span>Play in VLC</span>
                       </button>
 
                       <a
                         href={`/api/vlc/playlist?url=${encodeURIComponent(stream.streamUrl)}&title=${encodeURIComponent(movie.title)}`}
                         download
-                        className="p-1.5 rounded bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition"
+                        className="p-2 rounded-lg bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition"
                         title="Download .m3u playlist"
                       >
                         <Download className="w-3.5 h-3.5" />
@@ -164,7 +204,7 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
 
                       <button
                         onClick={() => handleCopy(stream.streamUrl)}
-                        className="p-1.5 rounded bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition"
+                        className="p-2 rounded-lg bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition"
                         title="Copy direct stream link"
                       >
                         {copiedUrl === stream.streamUrl ? (

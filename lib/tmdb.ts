@@ -21,7 +21,7 @@ export interface TMDBMedia {
 }
 
 export function getPosterUrl(path?: string | null, size: "w342" | "w500" | "original" = "w500"): string {
-  if (!path) return "/placeholder-poster.png";
+  if (!path) return "/placeholder-poster.svg";
   return `${TMDB_IMAGE_BASE}/${size}${path}`;
 }
 

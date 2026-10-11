@@ -1,90 +1,93 @@
 "use client";
 
-import { Play, Info } from "lucide-react";
+import { useState } from "react";
+import { Play, Info, Loader2 } from "lucide-react";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
+import { MoviePosterPlaceholder } from "@/components/movie-poster-placeholder";
 
 interface HeroSliderProps {
-  movies: CatalogMovie[];
+  movie: CatalogMovie | null;
   onPlayVlc: (streamUrl: string, title: string) => void;
   onSelectMovie: (movie: CatalogMovie) => void;
 }
 
-export function HeroSlider({ movies, onPlayVlc, onSelectMovie }: HeroSliderProps) {
-  const featured = movies.slice(0, 2);
-  if (featured.length === 0) return null;
+export function HeroSlider({ movie, onPlayVlc, onSelectMovie }: HeroSliderProps) {
+  const [loading, setLoading] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  if (!movie) return null;
+
+  const handlePlay = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/media/streams?title=${encodeURIComponent(movie.title)}&year=${movie.year}`);
+      const data = await res.json();
+      if (data.streams && data.streams.length > 0) {
+        onPlayVlc(data.streams[0].streamUrl, movie.title);
+      } else {
+        onSelectMovie(movie);
+      }
+    } catch {
+      onSelectMovie(movie);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const bgImage = movie.backdrop || movie.poster;
+  const showPlaceholder = !bgImage || imgError;
 
   return (
-    <div className="space-y-2">
-      {/* 2 Side-by-Side Featured Banners (as shown in screenshot) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {featured.map((m, idx) => (
-          <div
-            key={idx}
-            onClick={() => onSelectMovie(m)}
-            className="group relative aspect-[16/9] w-full rounded-lg overflow-hidden bg-black/60 border border-white/10 cursor-pointer shadow-md"
+    <div className="relative w-full rounded-2xl overflow-hidden bg-[#18181b] border border-white/10 shadow-2xl min-h-[260px] sm:min-h-[360px] md:min-h-[420px] flex items-end">
+      {/* Background Backdrop Image or Placeholder */}
+      {showPlaceholder ? (
+        <MoviePosterPlaceholder title={movie.title} year={movie.year} size="banner" />
+      ) : (
+        <img
+          src={bgImage}
+          alt={movie.title}
+          className="absolute inset-0 w-full h-full object-cover object-center filter brightness-[0.65]"
+          onError={() => setImgError(true)}
+        />
+      )}
+
+      {/* Multi-Stop Dark Gradient for readability */}
+      <div className="absolute inset-0 bg-gradient-to-t from-[#0e0e0f] via-[#0e0e0f]/70 to-transparent"></div>
+      <div className="absolute inset-0 bg-gradient-to-r from-[#0e0e0f] via-[#0e0e0f]/50 to-transparent"></div>
+
+      {/* Content Container */}
+      <div className="relative z-10 p-4 sm:p-8 md:p-10 max-w-2xl space-y-2.5 sm:space-y-3">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <span className="bg-[#e50914] text-white text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded shadow">
+            SPOTLIGHT
+          </span>
+          <span className="bg-black/60 text-white text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded border border-white/10">
+            {movie.quality}
+          </span>
+          <span className="text-xs text-neutral-300 font-medium">
+            {movie.year}
+          </span>
+        </div>
+
+        <h1 className="text-xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight leading-tight drop-shadow-md line-clamp-2">
+          {movie.title}
+        </h1>
+
+        {movie.overview && (
+          <p className="text-xs sm:text-sm text-neutral-300 line-clamp-2 sm:line-clamp-3 leading-relaxed drop-shadow">
+            {movie.overview}
+          </p>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 pt-1">
+          <button
+            onClick={() => onSelectMovie(movie)}
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#e50914] hover:bg-red-700 text-white font-bold text-xs sm:text-sm shadow-xl shadow-red-950/40 transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white min-h-[40px]"
           >
-            {/* Backdrop */}
-            <img
-              src={m.backdrop || m.poster || "/placeholder-poster.png"}
-              alt={m.title}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            />
-
-            {/* Gradient Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent"></div>
-
-            {/* Badges on Top */}
-            <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
-              <span className="bg-[#e50914] text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
-                Featured
-              </span>
-              <span className="bg-black/70 backdrop-blur text-white text-[10px] font-semibold px-2 py-0.5 rounded border border-white/10">
-                {m.quality}
-              </span>
-            </div>
-
-            {/* Bottom Info Overlay */}
-            <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2">
-              <div className="min-w-0">
-                <h3 className="text-sm font-bold text-white truncate drop-shadow-md group-hover:text-red-400 transition">
-                  {m.title}
-                </h3>
-                <p className="text-[11px] text-neutral-300 drop-shadow">
-                  {m.year} • {m.category}
-                </p>
-              </div>
-
-              {/* Quick Play in VLC button */}
-              <button
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  try {
-                    const res = await fetch(`/api/media/streams?title=${encodeURIComponent(m.title)}&year=${m.year}`);
-                    const data = await res.json();
-                    if (data.streams && data.streams.length > 0) {
-                      onPlayVlc(data.streams[0].streamUrl, m.title);
-                    } else {
-                      onSelectMovie(m);
-                    }
-                  } catch {
-                    onSelectMovie(m);
-                  }
-                }}
-                className="shrink-0 p-2 rounded bg-[#e50914] hover:bg-red-700 text-white shadow-lg transition active:scale-95"
-                title="Play in VLC"
-              >
-                <Play className="w-3.5 h-3.5 fill-current" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Slider dots (as shown in screenshot) */}
-      <div className="flex items-center justify-center gap-1.5 py-1">
-        <span className="w-4 h-1 rounded-full bg-[#e50914]"></span>
-        <span className="w-1.5 h-1 rounded-full bg-white/20"></span>
-        <span className="w-1.5 h-1 rounded-full bg-white/20"></span>
+            <Play className="w-4 h-4 fill-current" />
+            <span>View Streams</span>
+          </button>
+        </div>
       </div>
     </div>
   );

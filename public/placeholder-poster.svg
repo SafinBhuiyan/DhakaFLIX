@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 750" width="500" height="750">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1f1f24" />
+      <stop offset="50%" stop-color="#141417" />
+      <stop offset="100%" stop-color="#0b0b0d" />
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="30%" r="60%">
+      <stop offset="0%" stop-color="#e50914" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#e50914" stop-opacity="0" />
+      <stop offset="50%" stop-color="#e50914" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#e50914" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="500" height="750" rx="16" fill="url(#bg)" />
+  <rect width="500" height="750" rx="16" fill="url(#glow)" />
+  <rect width="500" height="750" rx="16" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="2" />
+  <rect x="50" y="0" width="400" height="3" fill="url(#accent)" />
+
+  <!-- Film Reel / Clapperboard Icon -->
+  <g transform="translate(186, 260)">
+    <rect width="128" height="128" rx="28" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.12" stroke-width="2" />
+    <!-- Clapperboard Outline -->
+    <path d="M 36 44 L 92 44 C 95 44 98 47 98 50 L 98 84 C 98 87 95 90 92 90 L 36 90 C 33 90 30 87 30 84 L 30 50 C 30 47 33 44 36 44 Z" fill="none" stroke="#e50914" stroke-width="4" stroke-linejoin="round" />
+    <path d="M 30 56 L 98 56" stroke="#e50914" stroke-width="3" stroke-linecap="round" />
+    <path d="M 44 44 L 50 56" stroke="#e50914" stroke-width="3" stroke-linecap="round" />
+    <path d="M 60 44 L 66 56" stroke="#e50914" stroke-width="3" stroke-linecap="round" />
+    <path d="M 76 44 L 82 56" stroke="#e50914" stroke-width="3" stroke-linecap="round" />
+  </g>
+
+  <!-- Text -->
+  <text x="250" y="440" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#f3f4f6" text-anchor="middle" letter-spacing="1">NO POSTER AVAILABLE</text>
+  <text x="250" y="475" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#9ca3af" text-anchor="middle">DHAKAFLIX MEDIA CLUSTER</text>
+
+  <!-- Bottom Branding -->
+  <line x1="80" y1="670" x2="420" y2="670" stroke="#ffffff" stroke-opacity="0.06" stroke-width="1" />
+  <text x="250" y="705" font-family="'Courier New', Courier, monospace" font-size="13" font-weight="600" fill="#6b7280" text-anchor="middle" letter-spacing="3">DHAKAFLIX • BDIX</text>
+</svg>

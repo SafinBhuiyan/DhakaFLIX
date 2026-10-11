@@ -295,3 +295,66 @@ export async function findDhakaFlixStreams(title: string, year?: number): Promis
 
   return found;
 }
+
+export interface DhakaFlixSearchResult {
+  id: string;
+  title: string;
+  rawName: string;
+  year: number;
+  quality: string;
+  serverUrl: string;
+  sourceServer: string;
+  category: string;
+  poster: string;
+  backdrop?: string;
+  overview?: string;
+  rating?: number;
+  modifiedDate: string;
+}
+
+// Global search across all major DhakaFlix sections
+export async function searchDhakaFlixCatalog(query: string, maxResults = 36): Promise<DhakaFlixSearchResult[]> {
+  const cleanQ = query.trim().toLowerCase();
+  if (!cleanQ) return [];
+
+  const searchSections = [
+    DHAKA_SECTIONS.movies1080p,
+    DHAKA_SECTIONS.movies720p,
+    DHAKA_SECTIONS.hindi,
+    DHAKA_SECTIONS.southDubbed,
+    DHAKA_SECTIONS.tvSeries,
+    DHAKA_SECTIONS.tvSeriesSZ,
+    DHAKA_SECTIONS.animation1080p,
+    DHAKA_SECTIONS.kolkata,
+  ];
+
+  const results: DhakaFlixSearchResult[] = [];
+
+  await Promise.all(
+    searchSections.map(async (sec) => {
+      try {
+        const folders = await fetchH5aiDirectory(sec.url);
+        for (const f of folders) {
+          if (!f.isFolder) continue;
+          if (f.name.toLowerCase().includes(cleanQ)) {
+            const { title, year, quality } = parseFolderTitle(f.name);
+            results.push({
+              id: Buffer.from(f.href).toString("base64url"),
+              title,
+              rawName: f.name,
+              year,
+              quality,
+              serverUrl: f.href,
+              sourceServer: sec.server,
+              category: sec.label,
+              poster: `${f.href}a_AL_.jpg`,
+              modifiedDate: f.date || "2026",
+            });
+          }
+        }
+      } catch {}
+    })
+  );
+
+  return results.slice(0, maxResults);
+}

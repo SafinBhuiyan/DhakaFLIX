@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Play, Loader2, Star, Sparkles, HardDrive } from "lucide-react";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
+import { MoviePosterPlaceholder } from "@/components/movie-poster-placeholder";
 
 interface DhakaMovieCardProps {
   movie: CatalogMovie;
@@ -10,26 +11,11 @@ interface DhakaMovieCardProps {
   onSelectMovie: (movie: CatalogMovie) => void;
 }
 
-export function DhakaMovieCard({ movie, onPlayVlc, onSelectMovie }: DhakaMovieCardProps) {
-  const [loading, setLoading] = useState(false);
+export function DhakaMovieCard({ movie, onSelectMovie }: DhakaMovieCardProps) {
+  const [imgError, setImgError] = useState(false);
+  const [fallbackAttempted, setFallbackAttempted] = useState(false);
 
-  const handleVlcClick = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/media/streams?title=${encodeURIComponent(movie.title)}&year=${movie.year}`);
-      const data = await res.json();
-      if (data.streams && data.streams.length > 0) {
-        onPlayVlc(data.streams[0].streamUrl, movie.title);
-      } else {
-        onSelectMovie(movie);
-      }
-    } catch {
-      onSelectMovie(movie);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const showPlaceholder = !movie.poster || imgError;
 
   return (
     <div
@@ -38,16 +24,32 @@ export function DhakaMovieCard({ movie, onPlayVlc, onSelectMovie }: DhakaMovieCa
     >
       {/* Poster Container */}
       <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-black/40">
-        <img
-          src={movie.poster || "/placeholder-poster.png"}
-          alt={movie.title}
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-          loading="lazy"
-          onError={(e) => {
-            // fallback to local a_AL_.jpg or placeholder
-            (e.target as HTMLImageElement).src = `${movie.serverUrl}a_AL_.jpg`;
-          }}
-        />
+        {showPlaceholder ? (
+          <MoviePosterPlaceholder
+            title={movie.title}
+            year={movie.year}
+            quality={movie.quality}
+            category={movie.category}
+            size="card"
+          />
+        ) : (
+          <img
+            src={movie.poster}
+            alt={movie.title}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            loading="lazy"
+            onError={(e) => {
+              const img = e.currentTarget;
+              const fallback = `${movie.serverUrl}a_AL_.jpg`;
+              if (!fallbackAttempted && img.src !== fallback) {
+                setFallbackAttempted(true);
+                img.src = fallback;
+              } else {
+                setImgError(true);
+              }
+            }}
+          />
+        )}
 
         {/* Quality Badge (Top Left) */}
         <div className="absolute top-2 left-2 z-10 flex items-center gap-1">
@@ -64,26 +66,8 @@ export function DhakaMovieCard({ movie, onPlayVlc, onSelectMovie }: DhakaMovieCa
           </span>
         </div>
 
-        {/* Hover Action Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-3 gap-2">
-          <button
-            onClick={handleVlcClick}
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs shadow-lg shadow-orange-900/50 transition-transform active:scale-95"
-            title="Play Stream directly in VLC"
-          >
-            {loading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Play className="w-4 h-4 fill-current" />
-            )}
-            <span>Play in VLC</span>
-          </button>
-
-          <span className="text-[11px] text-white/80 hover:text-white transition underline underline-offset-2">
-            View All Streams
-          </span>
-        </div>
+        {/* Subtle hover tint */}
+        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
       </div>
 
       {/* Info Section */}

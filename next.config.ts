@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
       { protocol: "http", hostname: "172.16.50.14" }
     ],
   },
+  allowedDevOrigins: ["192.168.10.112", "localhost", "127.0.0.1"],
 };
 
 export default nextConfig;
