@@ -321,16 +321,20 @@ export function getSnapshotStreams(title: string, year?: number): DhakaFlixStrea
   });
 
   if (match) {
+    const directStreamUrl = match.videoUrl || match.serverUrl;
+    const directFileName = match.videoFileName || `${match.rawName || match.title}.mkv`;
+    const directFileSize = match.videoFileSize || "Direct BDIX Stream";
+
     return [
       {
         title: match.title,
         year: match.year || year || 2026,
         quality: match.quality || "1080p",
-        fileName: `${match.rawName || match.title}.mkv`,
-        streamUrl: match.serverUrl,
+        fileName: directFileName,
+        streamUrl: directStreamUrl,
         folderUrl: match.serverUrl,
         fileSizeBytes: 0,
-        fileSizeFormatted: "Direct BDIX Stream",
+        fileSizeFormatted: directFileSize,
         sourceServer: match.sourceServer || "DhakaFlix",
         category: match.category || "DhakaFlix Media",
         modifiedDate: match.modifiedDate || "2026",
@@ -422,7 +426,7 @@ export function searchSnapshotCatalog(query: string, maxResults = 36): DhakaFlix
         rawName: item.rawName || item.title,
         year: item.year || 2026,
         quality: item.quality || "1080p",
-        serverUrl: item.serverUrl,
+        serverUrl: item.videoUrl || item.serverUrl,
         sourceServer: item.sourceServer || "Server 14",
         category: item.category || "DhakaFlix Media",
         poster: item.poster || `${item.serverUrl}a_AL_.jpg`,

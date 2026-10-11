@@ -126,26 +126,36 @@ export default function Home() {
     }
 
     // Desktop
-    setToastMessage({ text: `Launching VLC Media Player for "${title}"...`, type: "success" });
-    try {
-      const res = await fetch("/api/vlc/play", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ streamUrl }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setToastMessage({ text: `Playing "${title}" in VLC!`, type: "success" });
-      } else {
-        window.location.href = `/api/vlc/playlist?url=${encodeURIComponent(streamUrl)}&title=${encodeURIComponent(title)}`;
-        setToastMessage({ text: `Opened stream in VLC playlist.`, type: "success" });
-      }
-    } catch {
-      window.location.href = `/api/vlc/playlist?url=${encodeURIComponent(streamUrl)}&title=${encodeURIComponent(title)}`;
-      setToastMessage({ text: `Opened stream in VLC playlist.`, type: "success" });
+    const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+
+    if (isLocalhost) {
+      setToastMessage({ text: `Launching VLC Media Player for "${title}"...`, type: "success" });
+      try {
+        const res = await fetch("/api/vlc/play", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ streamUrl }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          setToastMessage({ text: `Playing "${title}" in VLC!`, type: "success" });
+          setTimeout(() => setToastMessage(null), 3500);
+          return;
+        }
+      } catch {}
     }
 
-    setTimeout(() => setToastMessage(null), 3500);
+    // Remote / Vercel Production Desktop
+    setToastMessage({ text: `Opening "${title}" in VLC Media Player...`, type: "success" });
+    window.location.href = `vlc://${streamUrl}`;
+
+    setTimeout(() => {
+      setToastMessage({
+        text: `Launched in VLC. If it didn't open, click the Download Playlist icon in the streams modal.`,
+        type: "success",
+      });
+    }, 2500);
+    setTimeout(() => setToastMessage(null), 5500);
   };
 
   const isSearching = !!searchQuery.trim();

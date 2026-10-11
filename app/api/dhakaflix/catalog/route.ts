@@ -44,10 +44,14 @@ export async function GET(req: NextRequest) {
   const isOnline = await checkBdixAvailability();
   if (!isOnline) {
     const fallback = (catalogSnapshot as any)[categoryKey] || (catalogSnapshot as any).movies1080p;
+    const mappedItems = (fallback?.items || []).slice(0, limit).map((m: any) => ({
+      ...m,
+      serverUrl: m.videoUrl || m.serverUrl,
+    }));
     return NextResponse.json({
       category: fallback?.category || sec.label,
       server: fallback?.server || sec.server,
-      items: (fallback?.items || []).slice(0, limit),
+      items: mappedItems,
     });
   }
 
@@ -58,10 +62,14 @@ export async function GET(req: NextRequest) {
     if (movieFolders.length === 0) {
       const fallback = (catalogSnapshot as any)[categoryKey] || (catalogSnapshot as any).movies1080p;
       if (fallback && fallback.items?.length > 0) {
+        const mappedItems = fallback.items.slice(0, limit).map((m: any) => ({
+          ...m,
+          serverUrl: m.videoUrl || m.serverUrl,
+        }));
         return NextResponse.json({
           category: fallback.category || sec.label,
           server: fallback.server || sec.server,
-          items: fallback.items.slice(0, limit),
+          items: mappedItems,
         });
       }
     }
