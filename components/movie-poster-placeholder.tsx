@@ -26,8 +26,8 @@ export function MoviePosterPlaceholder({
         className={`w-10 h-14 rounded-lg bg-gradient-to-b from-[#242429] via-[#161619] to-[#0c0c0e] border border-white/10 flex flex-col items-center justify-center p-1 text-center shrink-0 select-none ${className}`}
         title={title}
       >
-        <Film className="w-4 h-4 text-red-500/80 mb-0.5" />
-        <span className="text-[8px] font-bold text-neutral-400 line-clamp-2 leading-tight uppercase font-mono">
+        <Film className="w-4 h-4 text-[#e50914]/80 mb-0.5" />
+        <span className="text-[8px] font-bold text-neutral-400 line-clamp-1 leading-tight uppercase font-mono">
           {year || "DF"}
         </span>
       </div>
@@ -48,8 +48,8 @@ export function MoviePosterPlaceholder({
             </span>
           )}
         </div>
-        <div className="flex flex-col items-center gap-1">
-          <Clapperboard className="w-5 h-5 text-red-500/80" />
+        <div className="flex flex-col items-center gap-1.5">
+          <Clapperboard className="w-5 h-5 text-[#e50914]/80" />
           <span className="text-[9px] font-bold text-neutral-300 line-clamp-2 uppercase">
             {title}
           </span>
@@ -68,7 +68,7 @@ export function MoviePosterPlaceholder({
         className={`absolute inset-0 w-full h-full bg-gradient-to-br from-[#2a1215] via-[#16161a] to-[#0a0a0c] flex items-center justify-center p-8 select-none ${className}`}
       >
         <div className="flex flex-col items-center text-center max-w-md gap-3 opacity-40">
-          <Film className="w-16 h-16 text-red-500" />
+          <Film className="w-16 h-16 text-[#e50914]" />
           <span className="text-xl font-black text-white tracking-widest uppercase">
             DHAKAFLIX MEDIA
           </span>
@@ -93,7 +93,7 @@ export function MoviePosterPlaceholder({
         <span>{year || ""}</span>
       </div>
 
-      {/* Centerpiece: Stylized Film Icon + Title */}
+      {/* Centerpiece: Clapperboard Icon + Title */}
       <div className="my-auto flex flex-col items-center gap-2.5 z-10 max-w-full px-1">
         <div className="w-12 h-12 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-[#e50914] shadow-lg group-hover:scale-110 group-hover:border-[#e50914]/50 transition-all duration-300">
           <Clapperboard className="w-6 h-6 stroke-[1.75]" />
@@ -112,7 +112,7 @@ export function MoviePosterPlaceholder({
       {/* Bottom Footer: DhakaFlix Watermark */}
       <div className="w-full pt-2 border-t border-white/5 z-10 flex items-center justify-center gap-1.5 text-[9px] font-mono tracking-widest text-neutral-400 uppercase">
         <Video className="w-2.5 h-2.5 text-red-500/70" />
-        <span>BDIX MEDIA</span>
+        <span>DHAKAFLIX BDIX</span>
       </div>
     </div>
   );

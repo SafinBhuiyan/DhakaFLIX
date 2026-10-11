@@ -259,8 +259,8 @@ export default function Home() {
 
       {/* Clean Footer */}
       <footer className="bg-[#121213] border-t border-white/10 py-6 mt-16 text-center text-xs text-neutral-400 space-y-1">
-        <p className="font-semibold text-white">
-          DHAKAFLIX.COM • Local High-Speed BDIX Media
+        <p className="font-semibold text-white tracking-wide">
+          DHAKA<span className="text-[#e50914]">FLIX</span> • Local High-Speed BDIX Media
         </p>
         <p className="text-[11px] text-neutral-400">
           Connected Storage: Server 7 • Server 14 • Server 12

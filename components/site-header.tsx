@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Search, Play, Loader2, Star, ExternalLink } from "lucide-react";
+import { Search, Play, Loader2, Star, ExternalLink, ArrowLeft } from "lucide-react";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 import { MoviePosterPlaceholder } from "@/components/movie-poster-placeholder";
 
@@ -17,6 +17,7 @@ export function SiteHeader({ onSearch, onSelectMovie, onPlayVlc }: SiteHeaderPro
   const [suggestions, setSuggestions] = useState<CatalogMovie[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [isMobileSearchActive, setIsMobileSearchActive] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -55,6 +56,8 @@ export function SiteHeader({ onSearch, onSelectMovie, onPlayVlc }: SiteHeaderPro
         inputRef.current?.focus();
       } else if (e.key === "Escape") {
         setShowDropdown(false);
+        setIsMobileSearchActive(false);
+        inputRef.current?.blur();
       }
     };
 
@@ -71,6 +74,7 @@ export function SiteHeader({ onSearch, onSelectMovie, onPlayVlc }: SiteHeaderPro
         !inputRef.current?.contains(e.target as Node)
       ) {
         setShowDropdown(false);
+        setIsMobileSearchActive(false);
       }
     };
 
@@ -81,11 +85,15 @@ export function SiteHeader({ onSearch, onSelectMovie, onPlayVlc }: SiteHeaderPro
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setShowDropdown(false);
+    setIsMobileSearchActive(false);
+    inputRef.current?.blur();
     onSearch(searchInput.trim());
   };
 
   const handleSelectSuggestion = (movie: CatalogMovie) => {
     setShowDropdown(false);
+    setIsMobileSearchActive(false);
+    inputRef.current?.blur();
     if (onSelectMovie) {
       onSelectMovie(movie);
     } else {
@@ -95,12 +103,28 @@ export function SiteHeader({ onSearch, onSelectMovie, onPlayVlc }: SiteHeaderPro
 
   return (
     <header className="bg-[#121213]/95 backdrop-blur-md border-b border-white/10 sticky top-0 z-50">
-      <div className="max-w-[1480px] mx-auto px-3 sm:px-8 h-14 sm:h-16 flex items-center justify-between gap-3 sm:gap-6">
+      <div className="max-w-[1480px] mx-auto px-3 sm:px-8 h-14 sm:h-16 flex items-center justify-between gap-2.5 sm:gap-6">
         
-        {/* Brand Logo */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <Link href="/" className="flex items-center gap-1.5 sm:gap-2 group cursor-pointer">
-            <span className="text-xl sm:text-2xl font-black tracking-tight text-white group-hover:text-neutral-200 transition">
+        {/* Mobile Back Button when search is active */}
+        {isMobileSearchActive && (
+          <button
+            type="button"
+            onClick={() => {
+              setIsMobileSearchActive(false);
+              setShowDropdown(false);
+              inputRef.current?.blur();
+            }}
+            className="sm:hidden p-1.5 -ml-1 text-neutral-400 hover:text-white transition flex items-center justify-center shrink-0 rounded-lg hover:bg-white/10 active:scale-95"
+            aria-label="Back to home"
+          >
+            <ArrowLeft className="w-5 h-5 text-white" />
+          </button>
+        )}
+
+        {/* Brand Logo (hidden on mobile only while search is actively expanded) */}
+        <div className={`items-center gap-2 sm:gap-3 shrink-0 ${isMobileSearchActive ? "hidden sm:flex" : "flex"}`}>
+          <Link href="/" className="flex items-center gap-2 group cursor-pointer">
+            <span className="text-lg sm:text-2xl font-black tracking-tight text-white group-hover:text-neutral-200 transition">
               DHAKA<span className="text-[#e50914]">FLIX</span>
             </span>
             <span className="hidden md:inline-block text-[10px] bg-red-600/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded font-mono font-bold tracking-wider">
@@ -110,22 +134,23 @@ export function SiteHeader({ onSearch, onSelectMovie, onPlayVlc }: SiteHeaderPro
         </div>
 
         {/* Center / Right Search Bar with Live Suggestions Dropdown */}
-        <div className="flex items-center gap-4 flex-1 max-w-lg justify-end relative">
-          <form onSubmit={handleSearchSubmit} className="relative w-full">
+        <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0 max-w-lg justify-end relative">
+          <form onSubmit={handleSearchSubmit} className="relative w-full min-w-0">
             <input
               ref={inputRef}
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onFocus={() => {
+                setIsMobileSearchActive(true);
                 if (suggestions.length > 0) setShowDropdown(true);
               }}
-              placeholder="Search movies..."
-              className="w-full bg-[#18181b] border border-white/10 focus:border-[#e50914] focus:ring-1 focus:ring-[#e50914] text-[16px] sm:text-sm text-white placeholder-neutral-500 rounded-xl pl-8 sm:pl-9 pr-12 sm:pr-14 py-1.5 sm:py-2.5 transition outline-none shadow-inner"
+              placeholder={isMobileSearchActive ? "Search movies & series..." : "Search movies..."}
+              className="w-full min-w-0 bg-[#18181b] border border-white/10 focus:border-[#e50914] focus:ring-1 focus:ring-[#e50914] text-[16px] sm:text-sm text-white placeholder-neutral-500 rounded-xl pl-8 sm:pl-9 pr-9 sm:pr-14 h-9 sm:h-10 transition outline-none shadow-inner"
             />
-            <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-neutral-500 absolute left-2.5 sm:left-3 top-2.5 sm:top-3.5 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-neutral-500 absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
 
-            <div className="absolute right-2.5 sm:right-3 top-2 sm:top-2.5 flex items-center gap-1.5">
+            <div className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
               {loadingSuggestions && (
                 <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-[#e50914]" />
               )}
@@ -137,8 +162,9 @@ export function SiteHeader({ onSearch, onSelectMovie, onPlayVlc }: SiteHeaderPro
                     setSuggestions([]);
                     setShowDropdown(false);
                     onSearch("");
+                    inputRef.current?.focus();
                   }}
-                  className="text-neutral-400 hover:text-white text-xs p-1 transition min-w-[24px] min-h-[24px] flex items-center justify-center rounded-full hover:bg-white/10"
+                  className="text-neutral-400 hover:text-white text-xs p-1 transition min-w-[22px] min-h-[22px] flex items-center justify-center rounded-full hover:bg-white/10"
                   title="Clear search"
                 >
                   ✕
@@ -151,7 +177,7 @@ export function SiteHeader({ onSearch, onSelectMovie, onPlayVlc }: SiteHeaderPro
           {showDropdown && (
             <div
               ref={dropdownRef}
-              className="fixed inset-x-3 top-16 sm:absolute sm:inset-auto sm:top-12 sm:left-0 sm:right-0 sm:w-full bg-[#161618] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 divide-y divide-white/5 animate-fade-in max-h-[75vh] overflow-y-auto custom-scrollbar"
+              className="fixed inset-x-3 top-15 sm:absolute sm:inset-auto sm:top-12 sm:left-0 sm:right-0 sm:w-full bg-[#161618] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 divide-y divide-white/5 animate-fade-in max-h-[75vh] overflow-y-auto custom-scrollbar"
             >
               {suggestions.length === 0 ? (
                 <div className="p-4 text-center text-xs text-neutral-400">
