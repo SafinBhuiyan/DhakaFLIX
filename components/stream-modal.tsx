@@ -17,6 +17,14 @@ import { DhakaFlixStream } from "@/lib/dhakaflix";
 import { MoviePosterPlaceholder } from "@/components/movie-poster-placeholder";
 import { VlcIcon } from "@/components/vlc-icon";
 
+function YoutubeIcon({ className = "w-4 h-4", ...props }: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} {...props}>
+      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+    </svg>
+  );
+}
+
 interface StreamModalProps {
   movie: CatalogMovie | null;
   onClose: () => void;
@@ -30,12 +38,27 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
   const [imgError, setImgError] = useState(false);
   const [backdropError, setBackdropError] = useState(false);
 
-  // Close on Escape key
+  // YouTube Web Player State
+  const [trailerOpen, setTrailerOpen] = useState(false);
+  const [trailerLoading, setTrailerLoading] = useState(false);
+  const [trailerData, setTrailerData] = useState<{
+    embedUrl: string;
+    trailerTitle: string;
+    youtubeUrl?: string;
+  } | null>(null);
+
+  // Close on Escape key (trailer first, then modal)
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        if (trailerOpen) {
+          setTrailerOpen(false);
+        } else {
+          onClose();
+        }
+      }
     },
-    [onClose]
+    [onClose, trailerOpen]
   );
 
   useEffect(() => {
@@ -48,6 +71,8 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
     setImgError(false);
     setBackdropError(false);
     setCopiedUrl(null);
+    setTrailerOpen(false);
+    setTrailerData(null);
 
     // Instant direct stream resolution (0ms)
     const directUrl = movie.videoUrl || movie.serverUrl;
@@ -96,6 +121,30 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
     navigator.clipboard.writeText(url);
     setCopiedUrl(url);
     setTimeout(() => setCopiedUrl(null), 2000);
+  };
+
+  const handleOpenTrailer = async () => {
+    if (!movie) return;
+    if (trailerData) {
+      setTrailerOpen(true);
+      return;
+    }
+
+    setTrailerLoading(true);
+    try {
+      const res = await fetch(
+        `/api/media/trailer?title=${encodeURIComponent(movie.title)}&year=${movie.year}`
+      );
+      const data = await res.json();
+      if (data.embedUrl) {
+        setTrailerData(data);
+        setTrailerOpen(true);
+      }
+    } catch (err) {
+      console.error("Failed to load trailer:", err);
+    } finally {
+      setTrailerLoading(false);
+    }
   };
 
   const primaryStream = streams.length > 0 ? streams[0] : null;
@@ -226,8 +275,9 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
             </div>
           </div>
 
-          {/* Primary Action Buttons (Single Row, No Duplication!) */}
+          {/* Primary Action Buttons */}
           <div className="flex items-center gap-2 pt-1">
+            {/* 1. Play in VLC Button */}
             <button
               onClick={() => onPlayVlc(primaryStreamUrl, movie.title)}
               className="group flex-1 flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-orange-950/40 active:scale-95 transition min-h-[42px] cursor-pointer"
@@ -237,25 +287,31 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
               <span>Play in VLC</span>
             </button>
 
-            <a
-              href={primaryStreamUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="p-2.5 sm:px-3 sm:py-3 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition flex items-center justify-center min-w-[42px] min-h-[42px]"
-              title="Watch directly in browser"
+            {/* 2. YouTube Trailer in Web Player Button */}
+            <button
+              onClick={handleOpenTrailer}
+              disabled={trailerLoading}
+              className="p-2.5 sm:px-3 sm:py-3 rounded-xl bg-white/10 hover:bg-red-950/40 hover:border-red-500/40 border border-white/10 text-neutral-300 hover:text-red-400 transition flex items-center justify-center min-w-[42px] min-h-[42px] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 cursor-pointer group"
+              title="Watch Official YouTube Trailer in Web Player"
             >
-              <ExternalLink className="w-4 h-4" />
-            </a>
+              {trailerLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+              ) : (
+                <YoutubeIcon className="w-4 h-4 text-red-500 group-hover:scale-110 transition-transform" />
+              )}
+            </button>
 
+            {/* 3. Download .m3u Playlist */}
             <a
               href={`/api/vlc/playlist?url=${encodeURIComponent(primaryStreamUrl)}&title=${encodeURIComponent(movie.title)}`}
               download
               className="p-2.5 sm:px-3 sm:py-3 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition flex items-center justify-center min-w-[42px] min-h-[42px]"
-              title="Download .m3u playlist"
+              title="Download .m3u playlist file"
             >
               <Download className="w-4 h-4" />
             </a>
 
+            {/* 4. Copy Stream Link */}
             <button
               onClick={() => handleCopy(primaryStreamUrl)}
               className="p-2.5 sm:px-3 sm:py-3 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition flex items-center justify-center min-w-[42px] min-h-[42px]"
@@ -333,6 +389,65 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
           )}
         </div>
       </div>
+
+      {/* YouTube Trailer Web Player Overlay */}
+      {trailerOpen && trailerData && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-black/90 backdrop-blur-md animate-fade-in"
+          onClick={() => setTrailerOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-4xl rounded-2xl bg-[#111114] border border-white/15 shadow-2xl overflow-hidden flex flex-col animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Player Top Bar */}
+            <div className="p-3 sm:p-3.5 bg-[#17171a] border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0 pr-2">
+                <span className="bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded flex items-center gap-1 shrink-0">
+                  <YoutubeIcon className="w-3.5 h-3.5" />
+                  <span>TRAILER</span>
+                </span>
+                <h3 className="text-xs sm:text-sm font-bold text-white truncate">
+                  {movie.title} • {trailerData.trailerTitle}
+                </h3>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {trailerData.youtubeUrl && (
+                  <a
+                    href={trailerData.youtubeUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition text-xs flex items-center gap-1"
+                    title="Open in YouTube"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">YouTube</span>
+                  </a>
+                )}
+                <button
+                  onClick={() => setTrailerOpen(false)}
+                  className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition min-w-[32px] min-h-[32px] flex items-center justify-center"
+                  aria-label="Close trailer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* 16:9 Responsive Video Frame */}
+            <div className="relative aspect-video w-full bg-black">
+              <iframe
+                src={trailerData.embedUrl}
+                title={`${movie.title} Trailer`}
+                className="w-full h-full border-0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

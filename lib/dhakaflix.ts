@@ -40,7 +40,7 @@ export const DHAKA_SERVERS = {
   server8: "http://172.16.50.8",
 };
 
-export const DHAKA_SECTIONS: Record<string, { id: string; label: string; server: string; url: string }> = {
+export const DHAKA_SECTIONS: Record<string, { id: string; label: string; server: string; url: string; subUrls?: string[] }> = {
   movies1080p: {
     id: "movies1080p",
     label: "English Movies -1080p",
@@ -64,6 +64,11 @@ export const DHAKA_SECTIONS: Record<string, { id: string; label: string; server:
     label: "South Indian Movies",
     server: "Server 14",
     url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/South%20Movies/2026/`,
+    subUrls: [
+      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/South%20Movies/2026/`,
+      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/South%20Movies/2025/`,
+      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/South%20Movies/2024/`,
+    ],
   },
   southDubbed: {
     id: "southDubbed",
@@ -75,13 +80,22 @@ export const DHAKA_SECTIONS: Record<string, { id: string; label: string; server:
     id: "kolkata",
     label: "Kolkata Bangla Movies",
     server: "Server 7",
-    url: `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Kolkata%20Bangla%20Movies/`,
+    url: `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Kolkata%20Bangla%20Movies/%282024%29/`,
+    subUrls: [
+      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Kolkata%20Bangla%20Movies/%282024%29/`,
+      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Kolkata%20Bangla%20Movies/%282023%29/`,
+      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Kolkata%20Bangla%20Movies/%282022%29/`,
+    ],
   },
   animation: {
     id: "animation",
     label: "Animation Movies",
     server: "Server 14",
-    url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Animation%20Movies/`,
+    url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Animation%20Movies/%282024%29/`,
+    subUrls: [
+      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Animation%20Movies/%282024%29/`,
+      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Animation%20Movies/%282023%29/`,
+    ],
   },
   animation1080p: {
     id: "animation1080p",
@@ -93,7 +107,12 @@ export const DHAKA_SECTIONS: Record<string, { id: string; label: string; server:
     id: "foreign",
     label: "Foreign Language Movies",
     server: "Server 7",
-    url: `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Foreign%20Language%20Movies/`,
+    url: `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Foreign%20Language%20Movies/Korean%20Language/`,
+    subUrls: [
+      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Foreign%20Language%20Movies/Korean%20Language/`,
+      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Foreign%20Language%20Movies/Chinese%20Language/`,
+      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Foreign%20Language%20Movies/Japanese%20Language/`,
+    ],
   },
   imdb250: {
     id: "imdb250",

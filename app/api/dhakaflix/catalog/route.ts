@@ -60,9 +60,12 @@ export async function GET(req: NextRequest) {
       items: mappedItems,
     });
   }
-
   try {
-    const rawFolders = await fetchH5aiDirectory(sec.url);
+    const urlsToFetch = sec.subUrls && sec.subUrls.length > 0 ? sec.subUrls : [sec.url];
+    const folderArrays = await Promise.all(
+      urlsToFetch.map((u) => fetchH5aiDirectory(u).catch(() => []))
+    );
+    const rawFolders = folderArrays.flat();
     const movieFolders = rawFolders.filter((f) => f.isFolder);
 
     if (movieFolders.length === 0) {
