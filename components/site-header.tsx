@@ -120,7 +120,7 @@ export function SiteHeader({ onSearch, onSelectMovie, onPlayVlc }: SiteHeaderPro
               onFocus={() => {
                 if (suggestions.length > 0) setShowDropdown(true);
               }}
-              placeholder="Search movies & series..."
+              placeholder="Search movies..."
               className="w-full bg-[#18181b] border border-white/10 focus:border-[#e50914] focus:ring-1 focus:ring-[#e50914] text-[16px] sm:text-sm text-white placeholder-neutral-500 rounded-xl pl-8 sm:pl-9 pr-12 sm:pr-14 py-1.5 sm:py-2.5 transition outline-none shadow-inner"
             />
             <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-neutral-500 absolute left-2.5 sm:left-3 top-2.5 sm:top-3.5 pointer-events-none" />

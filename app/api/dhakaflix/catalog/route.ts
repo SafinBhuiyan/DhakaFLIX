@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchH5aiDirectory, parseFolderTitle, DHAKA_SECTIONS } from "@/lib/dhakaflix";
 import { searchTMDb, getPosterUrl, getBackdropUrl } from "@/lib/tmdb";
+import catalogSnapshot from "@/lib/catalog-snapshot.json";
 
 export interface CatalogMovie {
   id: string;
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
 
   // Check cache
   const cached = catalogCache[categoryKey];
-  if (cached && Date.now() - cached.savedAt < CACHE_TTL) {
+  if (cached && cached.items.length >= limit && Date.now() - cached.savedAt < CACHE_TTL) {
     return NextResponse.json({
       category: sec.label,
       server: sec.server,
@@ -42,6 +43,18 @@ export async function GET(req: NextRequest) {
   try {
     const rawFolders = await fetchH5aiDirectory(sec.url);
     const movieFolders = rawFolders.filter((f) => f.isFolder);
+
+    // Fallback to snapshot when running in cloud (Vercel) without direct BDIX LAN access
+    if (movieFolders.length === 0) {
+      const fallback = (catalogSnapshot as any)[categoryKey] || (catalogSnapshot as any).movies1080p;
+      if (fallback && fallback.items?.length > 0) {
+        return NextResponse.json({
+          category: fallback.category || sec.label,
+          server: fallback.server || sec.server,
+          items: fallback.items.slice(0, limit),
+        });
+      }
+    }
 
     const items: CatalogMovie[] = [];
 
@@ -92,6 +105,16 @@ export async function GET(req: NextRequest) {
       items,
     });
   } catch (err: any) {
+    // Cloud fallback (Vercel)
+    const fallback = (catalogSnapshot as any)[categoryKey] || (catalogSnapshot as any).movies1080p;
+    if (fallback && fallback.items?.length > 0) {
+      return NextResponse.json({
+        category: fallback.category || sec.label,
+        server: fallback.server || sec.server,
+        items: fallback.items.slice(0, limit),
+      });
+    }
+
     return NextResponse.json({ error: err.message, items: [] }, { status: 500 });
   }
 }
