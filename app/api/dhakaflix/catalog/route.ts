@@ -28,38 +28,58 @@ const CACHE_TTL = 10 * 60 * 1000;
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const categoryKey = searchParams.get("category") || "movies1080p";
-  const limit = parseInt(searchParams.get("limit") || "30", 10);
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+  const limit = Math.max(1, parseInt(searchParams.get("limit") || "24", 10));
+  const startIndex = (page - 1) * limit;
 
   // Map category to real DhakaFlix section
   const sec = DHAKA_SECTIONS[categoryKey] || DHAKA_SECTIONS.movies1080p;
 
-  // Check cache
+  // Check cache for instant paginated returns
   const cached = catalogCache[categoryKey];
-  if (cached && cached.items.length >= limit && Date.now() - cached.savedAt < CACHE_TTL) {
+  if (cached && Date.now() - cached.savedAt < CACHE_TTL) {
+    const total = cached.items.length;
+    const paginated = cached.items.slice(startIndex, startIndex + limit);
+    const hasMore = startIndex + limit < total;
     return NextResponse.json({
       category: sec.label,
       server: sec.server,
-      items: cached.items.slice(0, limit),
+      page,
+      limit,
+      total,
+      hasMore,
+      items: paginated,
     });
   }
 
-  // Fast check: If in cloud (Vercel) without direct BDIX LAN access, return snapshot instantly
+  // Fast check: If in cloud (Vercel) without direct BDIX LAN access, return paginated snapshot instantly
   const isOnline = await checkBdixAvailability();
   if (!isOnline) {
     const fallback = (catalogSnapshot as any)[categoryKey] || (catalogSnapshot as any).movies1080p;
-    const mappedItems = (fallback?.items || []).slice(0, limit).map((m: any) => ({
+    const allItems: any[] = fallback?.items || [];
+    const total = allItems.length;
+    const paginated = allItems.slice(startIndex, startIndex + limit);
+    const hasMore = startIndex + limit < total;
+
+    const mappedItems = paginated.map((m: any) => ({
       ...m,
       serverUrl: m.videoUrl || m.serverUrl,
       videoUrl: m.videoUrl,
       videoFileName: m.videoFileName,
       videoFileSize: m.videoFileSize,
     }));
+
     return NextResponse.json({
       category: fallback?.category || sec.label,
       server: fallback?.server || sec.server,
+      page,
+      limit,
+      total,
+      hasMore,
       items: mappedItems,
     });
   }
+
   try {
     const urlsToFetch = sec.subUrls && sec.subUrls.length > 0 ? sec.subUrls : [sec.url];
     const folderArrays = await Promise.all(
@@ -70,25 +90,37 @@ export async function GET(req: NextRequest) {
 
     if (movieFolders.length === 0) {
       const fallback = (catalogSnapshot as any)[categoryKey] || (catalogSnapshot as any).movies1080p;
-      if (fallback && fallback.items?.length > 0) {
-        const mappedItems = fallback.items.slice(0, limit).map((m: any) => ({
-          ...m,
-          serverUrl: m.videoUrl || m.serverUrl,
-          videoUrl: m.videoUrl,
-          videoFileName: m.videoFileName,
-          videoFileSize: m.videoFileSize,
-        }));
-        return NextResponse.json({
-          category: fallback.category || sec.label,
-          server: fallback.server || sec.server,
-          items: mappedItems,
-        });
-      }
+      const allItems: any[] = fallback?.items || [];
+      const total = allItems.length;
+      const paginated = allItems.slice(startIndex, startIndex + limit);
+      const hasMore = startIndex + limit < total;
+
+      const mappedItems = paginated.map((m: any) => ({
+        ...m,
+        serverUrl: m.videoUrl || m.serverUrl,
+        videoUrl: m.videoUrl,
+        videoFileName: m.videoFileName,
+        videoFileSize: m.videoFileSize,
+      }));
+
+      return NextResponse.json({
+        category: fallback?.category || sec.label,
+        server: fallback?.server || sec.server,
+        page,
+        limit,
+        total,
+        hasMore,
+        items: mappedItems,
+      });
     }
+
+    const total = movieFolders.length;
+    const paginatedFolders = movieFolders.slice(startIndex, startIndex + limit);
+    const hasMore = startIndex + limit < total;
 
     const items: CatalogMovie[] = [];
 
-    for (const folder of movieFolders.slice(0, limit)) {
+    for (const folder of paginatedFolders) {
       const { title, year, quality } = parseFolderTitle(folder.name);
       const localPoster = `${folder.href}a_AL_.jpg`;
 
@@ -106,13 +138,12 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Authentically enrich with TMDb in parallel (up to 20 items per request)
+    // Authentically enrich with TMDb in parallel for this page
     await Promise.all(
-      items.slice(0, 20).map(async (item) => {
+      items.map(async (item) => {
         try {
           const results = await searchTMDb(item.title);
           if (results && results.length > 0) {
-            // Find best matching release by year
             const match = results.find((r) => {
               const rYear = r.release_date || r.first_air_date;
               return rYear ? rYear.startsWith(String(item.year)) : false;
@@ -127,31 +158,39 @@ export async function GET(req: NextRequest) {
       })
     );
 
-    catalogCache[categoryKey] = { items, savedAt: Date.now() };
-
     return NextResponse.json({
       category: sec.label,
       server: sec.server,
+      page,
+      limit,
+      total,
+      hasMore,
       items,
     });
   } catch (err: any) {
     // Cloud fallback (Vercel)
     const fallback = (catalogSnapshot as any)[categoryKey] || (catalogSnapshot as any).movies1080p;
-    if (fallback && fallback.items?.length > 0) {
-      const mappedItems = fallback.items.slice(0, limit).map((m: any) => ({
-        ...m,
-        serverUrl: m.videoUrl || m.serverUrl,
-        videoUrl: m.videoUrl,
-        videoFileName: m.videoFileName,
-        videoFileSize: m.videoFileSize,
-      }));
-      return NextResponse.json({
-        category: fallback.category || sec.label,
-        server: fallback.server || sec.server,
-        items: mappedItems,
-      });
-    }
+    const allItems: any[] = fallback?.items || [];
+    const total = allItems.length;
+    const paginated = allItems.slice(startIndex, startIndex + limit);
+    const hasMore = startIndex + limit < total;
 
-    return NextResponse.json({ error: err.message, items: [] }, { status: 500 });
+    const mappedItems = paginated.map((m: any) => ({
+      ...m,
+      serverUrl: m.videoUrl || m.serverUrl,
+      videoUrl: m.videoUrl,
+      videoFileName: m.videoFileName,
+      videoFileSize: m.videoFileSize,
+    }));
+
+    return NextResponse.json({
+      category: fallback?.category || sec.label,
+      server: fallback?.server || sec.server,
+      page,
+      limit,
+      total,
+      hasMore,
+      items: mappedItems,
+    });
   }
 }

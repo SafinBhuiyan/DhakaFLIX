@@ -46,18 +46,33 @@ export const DHAKA_SECTIONS: Record<string, { id: string; label: string; server:
     label: "English Movies -1080p",
     server: "Server 14",
     url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/English%20Movies%20%281080p%29/%282026%29%201080p/`,
+    subUrls: [
+      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/English%20Movies%20%281080p%29/%282026%29%201080p/`,
+      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/English%20Movies%20%281080p%29/%282025%29%201080p/`,
+      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/English%20Movies%20%281080p%29/%282024%29%201080p/`,
+    ],
   },
   movies720p: {
     id: "movies720p",
     label: "English Movies",
     server: "Server 7",
     url: `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/English%20Movies/%282026%29/`,
+    subUrls: [
+      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/English%20Movies/%282026%29/`,
+      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/English%20Movies/%282025%29/`,
+      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/English%20Movies/%282024%29/`,
+    ],
   },
   hindi: {
     id: "hindi",
     label: "Hindi Movies",
     server: "Server 14",
     url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Hindi%20Movies/%282026%29/`,
+    subUrls: [
+      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Hindi%20Movies/%282026%29/`,
+      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Hindi%20Movies/%282025%29/`,
+      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Hindi%20Movies/%282024%29/`,
+    ],
   },
   southMovies: {
     id: "southMovies",
@@ -75,6 +90,11 @@ export const DHAKA_SECTIONS: Record<string, { id: string; label: string; server:
     label: "South-Movie Hindi Dubbed",
     server: "Server 14",
     url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/Hindi%20Dubbed/%282026%29/`,
+    subUrls: [
+      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/Hindi%20Dubbed/%282026%29/`,
+      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/Hindi%20Dubbed/%282025%29/`,
+      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/Hindi%20Dubbed/%282024%29/`,
+    ],
   },
   kolkata: {
     id: "kolkata",

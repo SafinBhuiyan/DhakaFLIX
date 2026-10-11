@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { ServerNavBar } from "@/components/server-nav-bar";
 import { HeroSlider } from "@/components/hero-slider";
@@ -19,6 +19,14 @@ export default function Home() {
   const [serverName, setServerName] = useState<string>("Server 14");
   const [loading, setLoading] = useState<boolean>(true);
 
+  // Pagination & Infinite Scroll State
+  const [page, setPage] = useState<number>(1);
+  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const loadingMoreRef = useRef<boolean>(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
   // Global Multi-Server Search State
   const [searchResults, setSearchResults] = useState<CatalogMovie[]>([]);
   const [searching, setSearching] = useState<boolean>(false);
@@ -27,21 +35,26 @@ export default function Home() {
   const [selectedMovie, setSelectedMovie] = useState<CatalogMovie | null>(null);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
+  const isSearching = !!searchQuery.trim();
+
   // Switch category cleanly
   const handleSelectCategory = (cat: string) => {
     if (cat === activeCategory && !searchQuery) return;
     setSearchQuery("");
     setSearchResults([]);
     setMovies([]);
+    setPage(1);
+    setHasMore(true);
     setActiveCategory(cat);
   };
 
-  // Load Real Movies and Real TV Series from DhakaFlix
+  // Load Real Movies and Real TV Series from DhakaFlix (Page 1)
   const loadData = async (cat: string) => {
     setLoading(true);
+    setPage(1);
     try {
       const fetchSeries = seriesList.length === 0;
-      const requests = [fetch(`/api/dhakaflix/catalog?category=${cat}&limit=50`)];
+      const requests = [fetch(`/api/dhakaflix/catalog?category=${cat}&page=1&limit=24`)];
       if (fetchSeries) {
         requests.push(fetch(`/api/dhakaflix/catalog?category=tvSeries&limit=12`));
       }
@@ -52,6 +65,8 @@ export default function Home() {
       setMovies(moviesData.items || []);
       setCategoryLabel(moviesData.category || "DhakaFlix Media");
       setServerName(moviesData.server || "Server 14");
+      setHasMore(Boolean(moviesData.hasMore));
+      setTotalCount(moviesData.total || (moviesData.items?.length ?? 0));
 
       if (fetchSeries && responses[1]) {
         const seriesData = await responses[1].json();
@@ -64,9 +79,57 @@ export default function Home() {
     }
   };
 
+  // Load next page for infinite scrolling
+  const loadMore = useCallback(async () => {
+    if (loading || loadingMoreRef.current || !hasMore || isSearching) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+
+    try {
+      const nextPage = page + 1;
+      const res = await fetch(`/api/dhakaflix/catalog?category=${activeCategory}&page=${nextPage}&limit=24`);
+      const data = await res.json();
+      const newItems: CatalogMovie[] = data.items || [];
+
+      if (newItems.length > 0) {
+        setMovies((prev) => {
+          const existingIds = new Set(prev.map((m) => m.id));
+          const filtered = newItems.filter((m) => !existingIds.has(m.id));
+          return [...prev, ...filtered];
+        });
+        setPage(nextPage);
+        setTotalCount(data.total || 0);
+      }
+      setHasMore(Boolean(data.hasMore));
+    } catch (err) {
+      console.error("Failed to load more movies:", err);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [loading, hasMore, isSearching, page, activeCategory]);
+
   useEffect(() => {
     loadData(activeCategory);
   }, [activeCategory]);
+
+  // Set up IntersectionObserver on bottom sentinel
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore || loading || loadingMore || isSearching) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMore();
+        }
+      },
+      { rootMargin: "350px" }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadingMore, isSearching, loadMore]);
 
   // Global multi-server search effect
   useEffect(() => {
@@ -178,7 +241,6 @@ export default function Home() {
     setTimeout(() => setToastMessage(null), 6000);
   };
 
-  const isSearching = !!searchQuery.trim();
   const isHome = activeCategory === "movies1080p" && !isSearching;
   const spotlightMovie = isHome && movies.length > 0 ? movies[0] : null;
 
@@ -230,9 +292,15 @@ export default function Home() {
                       Search Results for &ldquo;{searchQuery}&rdquo; ({searchResults.length} Titles Found)
                     </span>
                   ) : isHome ? (
-                    "Latest 1080p Releases"
+                    <span>
+                      Latest 1080p Releases ({displayedMovies.length}
+                      {totalCount > displayedMovies.length ? ` of ${totalCount}+` : ""} Titles)
+                    </span>
                   ) : (
-                    `${categoryLabel} (${displayedMovies.length} Titles)`
+                    <span>
+                      {categoryLabel} ({displayedMovies.length}
+                      {totalCount > displayedMovies.length ? ` of ${totalCount}+` : ""} Titles)
+                    </span>
                   )}
                 </h2>
 
@@ -292,6 +360,34 @@ export default function Home() {
                     onSelectMovie={setSelectedMovie}
                   />
                 ))}
+              </div>
+            )}
+
+            {/* Infinite Scroll Sentinel & Feedback */}
+            {!currentLoading && displayedMovies.length > 0 && !isSearching && (
+              <div className="pt-6 pb-2 flex flex-col items-center justify-center gap-3 w-full">
+                {/* Sentinel observed by IntersectionObserver */}
+                {hasMore && <div ref={sentinelRef} className="h-6 w-full pointer-events-none" />}
+
+                {loadingMore ? (
+                  <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white/5 border border-white/10 text-xs text-neutral-300 shadow-xl backdrop-blur-sm animate-pulse">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#e50914]" />
+                    <span className="font-medium">Loading more titles from {serverName}...</span>
+                  </div>
+                ) : hasMore ? (
+                  <button
+                    onClick={loadMore}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-xs font-semibold text-neutral-300 hover:text-white transition active:scale-95 shadow-sm"
+                  >
+                    <span>Load More Movies</span>
+                  </button>
+                ) : (
+                  <div className="text-center py-4 text-xs text-neutral-500 border-t border-white/5 w-full">
+                    <span>
+                      ✓ You have reached the end of {categoryLabel} ({displayedMovies.length} titles)
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </section>
