@@ -245,8 +245,8 @@ export function formatBytes(kbString: string): string {
 }
 
 export function parseFolderTitle(folderName: string) {
-  // Extract year
-  const yearMatch = folderName.match(/\((19|20\d{2})\)/);
+  // Extract 4-digit year: 19xx or 20xx
+  const yearMatch = folderName.match(/\(((?:19|20)\d{2})\)/);
   const year = yearMatch ? parseInt(yearMatch[1], 10) : 2026;
 
   // Clean title
@@ -258,6 +258,13 @@ export function parseFolderTitle(folderName: string) {
   }
   // Remove TV Series tag
   title = title.replace(/\(TV (Mini )?Series.*\)/i, "").trim();
+
+  // Strip leading numbering: e.g. "001. ", "05. ", "100. " (common in IMDb Top 250, Collections)
+  title = title.replace(/^\d{1,3}[\.\-_\s]+\s*/, "").trim();
+
+  // Clean hyphen separators
+  title = title.replace(/-(Part|Episode|The|Volume)/i, ": $1");
+  title = title.replace(/-/g, " ").replace(/\s+/g, " ").trim();
 
   // Extract quality
   let quality = "720p";
