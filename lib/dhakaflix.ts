@@ -40,117 +40,90 @@ export const DHAKA_SERVERS = {
   server8: "http://172.16.50.8",
 };
 
-export const DHAKA_SECTIONS: Record<string, { id: string; label: string; server: string; url: string; subUrls?: string[] }> = {
+export const DHAKA_SECTIONS: Record<string, { id: string; label: string; server: string; url: string; isContainer?: boolean; subUrls?: string[] }> = {
   movies1080p: {
     id: "movies1080p",
     label: "English Movies -1080p",
     server: "Server 14",
-    url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/English%20Movies%20%281080p%29/%282026%29%201080p/`,
-    subUrls: [
-      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/English%20Movies%20%281080p%29/%282026%29%201080p/`,
-      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/English%20Movies%20%281080p%29/%282025%29%201080p/`,
-      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/English%20Movies%20%281080p%29/%282024%29%201080p/`,
-    ],
+    url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/English%20Movies%20%281080p%29/`,
+    isContainer: true,
   },
   movies720p: {
     id: "movies720p",
     label: "English Movies",
     server: "Server 7",
-    url: `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/English%20Movies/%282026%29/`,
-    subUrls: [
-      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/English%20Movies/%282026%29/`,
-      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/English%20Movies/%282025%29/`,
-      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/English%20Movies/%282024%29/`,
-    ],
+    url: `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/English%20Movies/`,
+    isContainer: true,
   },
   hindi: {
     id: "hindi",
     label: "Hindi Movies",
     server: "Server 14",
-    url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Hindi%20Movies/%282026%29/`,
-    subUrls: [
-      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Hindi%20Movies/%282026%29/`,
-      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Hindi%20Movies/%282025%29/`,
-      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Hindi%20Movies/%282024%29/`,
-    ],
+    url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Hindi%20Movies/`,
+    isContainer: true,
   },
   southMovies: {
     id: "southMovies",
     label: "South Indian Movies",
     server: "Server 14",
-    url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/South%20Movies/2026/`,
-    subUrls: [
-      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/South%20Movies/2026/`,
-      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/South%20Movies/2025/`,
-      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/South%20Movies/2024/`,
-    ],
+    url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/South%20Movies/`,
+    isContainer: true,
   },
   southDubbed: {
     id: "southDubbed",
     label: "South-Movie Hindi Dubbed",
     server: "Server 14",
-    url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/Hindi%20Dubbed/%282026%29/`,
-    subUrls: [
-      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/Hindi%20Dubbed/%282026%29/`,
-      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/Hindi%20Dubbed/%282025%29/`,
-      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/Hindi%20Dubbed/%282024%29/`,
-    ],
+    url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/Hindi%20Dubbed/`,
+    isContainer: true,
   },
   kolkata: {
     id: "kolkata",
     label: "Kolkata Bangla Movies",
     server: "Server 7",
-    url: `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Kolkata%20Bangla%20Movies/%282024%29/`,
-    subUrls: [
-      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Kolkata%20Bangla%20Movies/%282024%29/`,
-      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Kolkata%20Bangla%20Movies/%282023%29/`,
-      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Kolkata%20Bangla%20Movies/%282022%29/`,
-    ],
+    url: `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Kolkata%20Bangla%20Movies/`,
+    isContainer: true,
   },
   animation: {
     id: "animation",
     label: "Animation Movies",
     server: "Server 14",
-    url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Animation%20Movies/%282024%29/`,
-    subUrls: [
-      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Animation%20Movies/%282024%29/`,
-      `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Animation%20Movies/%282023%29/`,
-    ],
+    url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Animation%20Movies/`,
+    isContainer: true,
   },
   animation1080p: {
     id: "animation1080p",
     label: "Animation Movies -1080p",
     server: "Server 14",
     url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Animation%20Movies%20%281080p%29/`,
+    isContainer: false,
   },
   foreign: {
     id: "foreign",
     label: "Foreign Language Movies",
     server: "Server 7",
-    url: `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Foreign%20Language%20Movies/Korean%20Language/`,
-    subUrls: [
-      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Foreign%20Language%20Movies/Korean%20Language/`,
-      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Foreign%20Language%20Movies/Chinese%20Language/`,
-      `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Foreign%20Language%20Movies/Japanese%20Language/`,
-    ],
+    url: `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Foreign%20Language%20Movies/`,
+    isContainer: true,
   },
   imdb250: {
     id: "imdb250",
     label: "IMDb Top-250 Movies",
     server: "Server 14",
     url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/IMDb%20Top-250%20Movies/`,
+    isContainer: false,
   },
   movies3D: {
     id: "movies3D",
     label: "3D Movies",
     server: "Server 7",
     url: `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/3D%20Movies/`,
+    isContainer: false,
   },
   tvSeries: {
     id: "tvSeries",
     label: "TV & Web Series",
     server: "Server 12",
-    url: `${DHAKA_SERVERS.server12}/DHAKA-FLIX-12/TV-WEB-Series/TV%20Series%20%E2%99%A5%20%20A%20%20%E2%80%94%20%20L/`,
+    url: `${DHAKA_SERVERS.server12}/DHAKA-FLIX-12/TV-WEB-Series/`,
+    isContainer: true,
   },
   tvSeriesSZ: {
     id: "tvSeriesSZ",
@@ -195,6 +168,58 @@ export const DHAKA_SECTIONS: Record<string, { id: string; label: string; server:
     url: `${DHAKA_SERVERS.server8}/DHAKA-FLIX-8/Software/`,
   },
 };
+
+const categoryFoldersCache = new Map<string, { folders: { href: string; name: string; date: string; size: string; isFolder: boolean }[]; savedAt: number }>();
+const CATEGORY_CACHE_TTL = 15 * 60 * 1000; // 15 mins
+
+export async function getCategoryMovieFolders(categoryKey: string): Promise<{ href: string; name: string; date: string; size: string; isFolder: boolean }[]> {
+  const cached = categoryFoldersCache.get(categoryKey);
+  if (cached && Date.now() - cached.savedAt < CATEGORY_CACHE_TTL) {
+    return cached.folders;
+  }
+
+  const sec = DHAKA_SECTIONS[categoryKey] || DHAKA_SECTIONS.movies1080p;
+
+  if (!sec.isContainer) {
+    const rawFolders = await fetchH5aiDirectory(sec.url);
+    const result = rawFolders.filter((f) => f.isFolder);
+    if (result.length > 0) {
+      categoryFoldersCache.set(categoryKey, { folders: result, savedAt: Date.now() });
+    }
+    return result;
+  }
+
+  // Fetch container subfolders (years or languages or alphabet letters)
+  const subDirs = await fetchH5aiDirectory(sec.url);
+  const containerFolders = subDirs.filter((f) => f.isFolder);
+
+  if (containerFolders.length === 0) {
+    return [];
+  }
+
+  // Sort containers: reverse chronological for years (newest years first: 2026, 2025, 2024...)
+  containerFolders.sort((a, b) => {
+    const yA = a.name.match(/\d{4}/);
+    const yB = b.name.match(/\d{4}/);
+    if (yA && yB) {
+      return parseInt(yB[0], 10) - parseInt(yA[0], 10);
+    }
+    if (yA) return -1;
+    if (yB) return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  // Fetch movies from all container folders in parallel
+  const folderArrays = await Promise.all(
+    containerFolders.map((c) => fetchH5aiDirectory(c.href).catch(() => []))
+  );
+
+  const result = folderArrays.flat().filter((f) => f.isFolder);
+  if (result.length > 0) {
+    categoryFoldersCache.set(categoryKey, { folders: result, savedAt: Date.now() });
+  }
+  return result;
+}
 
 const VIDEO_EXTENSIONS = /\.(mkv|mp4|avi|mov|wmv|m4v|webm)$/i;
 const CACHE_TTL = 5 * 60 * 1000; // 5 mins
@@ -510,23 +535,24 @@ export async function searchDhakaFlixCatalog(query: string, maxResults = 36): Pr
     return searchSnapshotCatalog(cleanQ, maxResults);
   }
 
-  const searchSections = [
-    DHAKA_SECTIONS.movies1080p,
-    DHAKA_SECTIONS.movies720p,
-    DHAKA_SECTIONS.hindi,
-    DHAKA_SECTIONS.southDubbed,
-    DHAKA_SECTIONS.tvSeries,
-    DHAKA_SECTIONS.tvSeriesSZ,
-    DHAKA_SECTIONS.animation1080p,
-    DHAKA_SECTIONS.kolkata,
+  const searchCategories = [
+    "movies1080p",
+    "hindi",
+    "southDubbed",
+    "southMovies",
+    "movies720p",
+    "tvSeries",
+    "animation1080p",
+    "kolkata",
   ];
 
   const results: DhakaFlixSearchResult[] = [];
 
   await Promise.all(
-    searchSections.map(async (sec) => {
+    searchCategories.map(async (catKey) => {
       try {
-        const folders = await fetchH5aiDirectory(sec.url);
+        const sec = DHAKA_SECTIONS[catKey];
+        const folders = await getCategoryMovieFolders(catKey);
         for (const f of folders) {
           if (!f.isFolder) continue;
           if (f.name.toLowerCase().includes(cleanQ)) {
@@ -538,11 +564,12 @@ export async function searchDhakaFlixCatalog(query: string, maxResults = 36): Pr
               year,
               quality,
               serverUrl: f.href,
-              sourceServer: sec.server,
-              category: sec.label,
+              sourceServer: sec ? sec.server : "DhakaFlix",
+              category: sec ? sec.label : "DhakaFlix Media",
               poster: `${f.href}a_AL_.jpg`,
               modifiedDate: f.date || "2026",
             });
+            if (results.length >= maxResults * 2) break;
           }
         }
       } catch {}

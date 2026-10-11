@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Home,
   Film,
   Video,
   Tv,
@@ -20,6 +21,7 @@ export interface ServerSection {
 }
 
 export const SERVER_SECTIONS: ServerSection[] = [
+  { id: "home", label: "Home", icon: Home },
   { id: "movies1080p", label: "English Movies -1080p", icon: Film },
   { id: "movies720p", label: "English Movies", icon: Video },
   { id: "hindi", label: "Hindi Movies", icon: Flame },

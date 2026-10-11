@@ -11,9 +11,10 @@ interface SiteHeaderProps {
   onSearch: (query: string) => void;
   onSelectMovie?: (movie: CatalogMovie) => void;
   onPlayVlc?: (streamUrl: string, title: string) => void;
+  onHomeClick?: () => void;
 }
 
-export function SiteHeader({ onSearch, onSelectMovie, onPlayVlc }: SiteHeaderProps) {
+export function SiteHeader({ onSearch, onSelectMovie, onPlayVlc, onHomeClick }: SiteHeaderProps) {
   const [searchInput, setSearchInput] = useState("");
   const [suggestions, setSuggestions] = useState<CatalogMovie[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
@@ -133,7 +134,19 @@ export function SiteHeader({ onSearch, onSelectMovie, onPlayVlc }: SiteHeaderPro
 
         {/* Brand Logo (hidden on mobile only while search is actively expanded) */}
         <div className={`items-center gap-2 sm:gap-3 shrink-0 ${isMobileSearchActive ? "hidden sm:flex" : "flex"}`}>
-          <Link href="/" className="flex items-center gap-2 group cursor-pointer">
+          <Link
+            href="/"
+            onClick={(e) => {
+              if (onHomeClick) {
+                e.preventDefault();
+                setSearchInput("");
+                setShowDropdown(false);
+                setIsMobileSearchActive(false);
+                onHomeClick();
+              }
+            }}
+            className="flex items-center gap-2 group cursor-pointer"
+          >
             <span className="text-lg sm:text-2xl font-black tracking-tight text-white group-hover:text-neutral-200 transition">
               DHAKA<span className="text-[#e50914]">FLIX</span>
             </span>

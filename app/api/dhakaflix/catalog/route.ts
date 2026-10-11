@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchH5aiDirectory, parseFolderTitle, DHAKA_SECTIONS, checkBdixAvailability } from "@/lib/dhakaflix";
+import { getCategoryMovieFolders, parseFolderTitle, DHAKA_SECTIONS, checkBdixAvailability } from "@/lib/dhakaflix";
 import { searchTMDb, getPosterUrl, getBackdropUrl } from "@/lib/tmdb";
 import catalogSnapshot from "@/lib/catalog-snapshot.json";
 
@@ -22,8 +22,8 @@ export interface CatalogMovie {
   videoFileSize?: string;
 }
 
-let catalogCache: Record<string, { items: CatalogMovie[]; savedAt: number }> = {};
-const CACHE_TTL = 10 * 60 * 1000;
+// In-memory cache for TMDb enriched metadata per title+year
+const tmdbEnrichmentCache = new Map<string, { poster?: string; backdrop?: string; overview?: string; rating?: number }>();
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -32,25 +32,67 @@ export async function GET(req: NextRequest) {
   const limit = Math.max(1, parseInt(searchParams.get("limit") || "24", 10));
   const startIndex = (page - 1) * limit;
 
-  // Map category to real DhakaFlix section
-  const sec = DHAKA_SECTIONS[categoryKey] || DHAKA_SECTIONS.movies1080p;
+  // Dedicated Curated Home Payload: 1-Request Instant Multi-Section Catalog
+  if (categoryKey === "home") {
+    const HOME_SECTIONS_CONFIG = [
+      { key: "movies1080p", label: "Trending 1080p Movies", server: "Server 14" },
+      { key: "tvSeries", label: "TV & Web Series", server: "Server 12" },
+      { key: "hindi", label: "Hindi & Bollywood Hits", server: "Server 14" },
+      { key: "imdb250", label: "IMDb Top-250 Masterpieces", server: "Server 14" },
+      { key: "southDubbed", label: "South-Movie Hindi Dubbed", server: "Server 14" },
+      { key: "animation1080p", label: "Animation & Anime (1080p)", server: "Server 14" },
+      { key: "foreign", label: "Foreign Language Cinema", server: "Server 7" },
+      { key: "kolkata", label: "Kolkata Bangla Movies", server: "Server 7" },
+      { key: "movies720p", label: "English Movies (720p)", server: "Server 7" },
+    ];
 
-  // Check cache for instant paginated returns
-  const cached = catalogCache[categoryKey];
-  if (cached && Date.now() - cached.savedAt < CACHE_TTL) {
-    const total = cached.items.length;
-    const paginated = cached.items.slice(startIndex, startIndex + limit);
-    const hasMore = startIndex + limit < total;
+    const snapshot = catalogSnapshot as Record<string, any>;
+    const sections = HOME_SECTIONS_CONFIG.map((secDef) => {
+      const data = snapshot[secDef.key];
+      const items: CatalogMovie[] = (data?.items || []).slice(0, 20).map((m: any) => ({
+        ...m,
+        serverUrl: m.videoUrl || m.serverUrl,
+        videoUrl: m.videoUrl,
+        videoFileName: m.videoFileName,
+        videoFileSize: m.videoFileSize,
+      }));
+      return {
+        id: secDef.key,
+        label: secDef.label,
+        server: data?.server || secDef.server,
+        total: data?.items?.length || items.length,
+        items,
+      };
+    });
+
+    // Curate top 5 high-rating items with backdrop for the Hero Spotlight
+    const spotlightCandidates = [
+      ...(snapshot.movies1080p?.items || []).slice(0, 8),
+      ...(snapshot.imdb250?.items || []).slice(0, 6),
+      ...(snapshot.tvSeries?.items || []).slice(0, 6),
+    ];
+    const spotlight = spotlightCandidates
+      .filter((m: any) => m.backdrop && m.overview)
+      .slice(0, 5)
+      .map((m: any) => ({
+        ...m,
+        serverUrl: m.videoUrl || m.serverUrl,
+        videoUrl: m.videoUrl,
+        videoFileName: m.videoFileName,
+        videoFileSize: m.videoFileSize,
+      }));
+
     return NextResponse.json({
-      category: sec.label,
-      server: sec.server,
-      page,
-      limit,
-      total,
-      hasMore,
-      items: paginated,
+      isHome: true,
+      category: "Home",
+      server: "All Storage Nodes",
+      spotlight,
+      sections,
     });
   }
+
+  // Map category to real DhakaFlix section
+  const sec = DHAKA_SECTIONS[categoryKey] || DHAKA_SECTIONS.movies1080p;
 
   // Fast check: If in cloud (Vercel) without direct BDIX LAN access, return paginated snapshot instantly
   const isOnline = await checkBdixAvailability();
@@ -81,12 +123,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const urlsToFetch = sec.subUrls && sec.subUrls.length > 0 ? sec.subUrls : [sec.url];
-    const folderArrays = await Promise.all(
-      urlsToFetch.map((u) => fetchH5aiDirectory(u).catch(() => []))
-    );
-    const rawFolders = folderArrays.flat();
-    const movieFolders = rawFolders.filter((f) => f.isFolder);
+    const movieFolders = await getCategoryMovieFolders(categoryKey);
 
     if (movieFolders.length === 0) {
       const fallback = (catalogSnapshot as any)[categoryKey] || (catalogSnapshot as any).movies1080p;
@@ -141,6 +178,16 @@ export async function GET(req: NextRequest) {
     // Authentically enrich with TMDb in parallel for this page
     await Promise.all(
       items.map(async (item) => {
+        const cacheKey = `${item.title.toLowerCase()}_${item.year}`;
+        if (tmdbEnrichmentCache.has(cacheKey)) {
+          const cached = tmdbEnrichmentCache.get(cacheKey)!;
+          if (cached.poster) item.poster = cached.poster;
+          if (cached.backdrop) item.backdrop = cached.backdrop;
+          if (cached.overview) item.overview = cached.overview;
+          if (cached.rating) item.rating = cached.rating;
+          return;
+        }
+
         try {
           const results = await searchTMDb(item.title);
           if (results && results.length > 0) {
@@ -149,10 +196,18 @@ export async function GET(req: NextRequest) {
               return rYear ? rYear.startsWith(String(item.year)) : false;
             }) || results[0];
 
-            if (match.poster_path) item.poster = getPosterUrl(match.poster_path, "w500");
-            if (match.backdrop_path) item.backdrop = getBackdropUrl(match.backdrop_path, "w1280");
-            if (match.overview) item.overview = match.overview;
-            if (match.vote_average) item.rating = match.vote_average;
+            const meta: { poster?: string; backdrop?: string; overview?: string; rating?: number } = {};
+            if (match.poster_path) meta.poster = getPosterUrl(match.poster_path, "w500");
+            if (match.backdrop_path) meta.backdrop = getBackdropUrl(match.backdrop_path, "w1280");
+            if (match.overview) meta.overview = match.overview;
+            if (match.vote_average) meta.rating = match.vote_average;
+
+            tmdbEnrichmentCache.set(cacheKey, meta);
+
+            if (meta.poster) item.poster = meta.poster;
+            if (meta.backdrop) item.backdrop = meta.backdrop;
+            if (meta.overview) item.overview = meta.overview;
+            if (meta.rating) item.rating = meta.rating;
           }
         } catch {}
       })
