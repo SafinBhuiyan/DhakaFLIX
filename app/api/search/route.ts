@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchDhakaFlixCatalog, DhakaFlixSearchResult } from "@/lib/dhakaflix";
+import { searchDhakaFlixCatalog, searchSnapshotCatalog, checkBdixAvailability } from "@/lib/dhakaflix";
 import { searchTMDb, getPosterUrl, getBackdropUrl } from "@/lib/tmdb";
-import catalogSnapshot from "@/lib/catalog-snapshot.json";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -13,25 +12,28 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // 1. Search all DhakaFlix storage servers in parallel
+    const isOnline = await checkBdixAvailability();
+
+    // 1. If in cloud (Vercel), search snapshot instantly (0ms latency, zero timeout risk)
+    if (!isOnline) {
+      const items = searchSnapshotCatalog(q, limit);
+      return NextResponse.json({
+        query: q,
+        total: items.length,
+        results: items,
+      });
+    }
+
+    // 2. If on local BDIX LAN, perform multi-server search
     let items = await searchDhakaFlixCatalog(q, limit);
 
-    // If running in cloud (Vercel) without direct BDIX LAN access, fallback to snapshot search
     if (items.length === 0) {
-      const qLower = q.toLowerCase();
-      const allSnapshotItems: any[] = Object.values(catalogSnapshot).flatMap(
-        (cat: any) => cat.items || []
-      );
-      const matched = allSnapshotItems.filter(
-        (item: any) =>
-          item.title?.toLowerCase().includes(qLower) ||
-          item.rawName?.toLowerCase().includes(qLower)
-      );
-      items = matched.slice(0, limit);
+      items = searchSnapshotCatalog(q, limit);
     } else {
-      // 2. Enrich top 12 results with TMDb posters, ratings, and backdrops in parallel
+      // Enrich top 6 items missing artwork with TMDb in parallel
       await Promise.all(
-        items.slice(0, 12).map(async (item) => {
+        items.slice(0, 6).map(async (item) => {
+          if (item.poster && !item.poster.endsWith("a_AL_.jpg")) return;
           try {
             const results = await searchTMDb(item.title);
             if (results && results.length > 0) {
@@ -55,22 +57,12 @@ export async function GET(req: NextRequest) {
       total: items.length,
       results: items,
     });
-  } catch (err: any) {
-    // Fallback to snapshot search on error
-    const qLower = q.toLowerCase();
-    const allSnapshotItems: any[] = Object.values(catalogSnapshot).flatMap(
-      (cat: any) => cat.items || []
-    );
-    const matched = allSnapshotItems.filter(
-      (item: any) =>
-        item.title?.toLowerCase().includes(qLower) ||
-        item.rawName?.toLowerCase().includes(qLower)
-    );
-
+  } catch {
+    const items = searchSnapshotCatalog(q, limit);
     return NextResponse.json({
       query: q,
-      total: matched.length,
-      results: matched.slice(0, limit),
+      total: items.length,
+      results: items,
     });
   }
 }

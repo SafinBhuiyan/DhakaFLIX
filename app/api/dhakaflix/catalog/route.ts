@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchH5aiDirectory, parseFolderTitle, DHAKA_SECTIONS } from "@/lib/dhakaflix";
+import { fetchH5aiDirectory, parseFolderTitle, DHAKA_SECTIONS, checkBdixAvailability } from "@/lib/dhakaflix";
 import { searchTMDb, getPosterUrl, getBackdropUrl } from "@/lib/tmdb";
 import catalogSnapshot from "@/lib/catalog-snapshot.json";
 
@@ -40,11 +40,21 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  // Fast check: If in cloud (Vercel) without direct BDIX LAN access, return snapshot instantly
+  const isOnline = await checkBdixAvailability();
+  if (!isOnline) {
+    const fallback = (catalogSnapshot as any)[categoryKey] || (catalogSnapshot as any).movies1080p;
+    return NextResponse.json({
+      category: fallback?.category || sec.label,
+      server: fallback?.server || sec.server,
+      items: (fallback?.items || []).slice(0, limit),
+    });
+  }
+
   try {
     const rawFolders = await fetchH5aiDirectory(sec.url);
     const movieFolders = rawFolders.filter((f) => f.isFolder);
 
-    // Fallback to snapshot when running in cloud (Vercel) without direct BDIX LAN access
     if (movieFolders.length === 0) {
       const fallback = (catalogSnapshot as any)[categoryKey] || (catalogSnapshot as any).movies1080p;
       if (fallback && fallback.items?.length > 0) {

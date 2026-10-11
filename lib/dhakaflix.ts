@@ -1,3 +1,5 @@
+import catalogSnapshot from "@/lib/catalog-snapshot.json";
+
 export interface DhakaFlixStream {
   title: string;
   year?: number;
@@ -159,6 +161,40 @@ const VIDEO_EXTENSIONS = /\.(mkv|mp4|avi|mov|wmv|m4v|webm)$/i;
 const CACHE_TTL = 5 * 60 * 1000; // 5 mins
 const directoryCache = new Map<string, { items: any[]; savedAt: number }>();
 
+// Circuit breaker for BDIX 172.16.50.x connectivity
+let isBdixOnline: boolean | null = null;
+let lastBdixCheck = 0;
+const BDIX_CHECK_INTERVAL = 3 * 60 * 1000; // 3 minutes
+
+export async function checkBdixAvailability(): Promise<boolean> {
+  // Cloud environments like Vercel / AWS can NEVER route to private RFC-1918 172.16.50.x
+  if (process.env.VERCEL === "1" || process.env.NEXT_PUBLIC_VERCEL_ENV) {
+    return false;
+  }
+
+  const now = Date.now();
+  if (isBdixOnline !== null && now - lastBdixCheck < BDIX_CHECK_INTERVAL) {
+    return isBdixOnline;
+  }
+
+  try {
+    const controller = new AbortController();
+    // Strict 500ms timeout: never hang or queue user requests
+    const timeout = setTimeout(() => controller.abort(), 500);
+    const res = await fetch("http://172.16.50.14/DHAKA-FLIX-14/", {
+      method: "HEAD",
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    isBdixOnline = res.ok || res.status < 500;
+  } catch {
+    isBdixOnline = false;
+  }
+
+  lastBdixCheck = now;
+  return isBdixOnline;
+}
+
 export function formatBytes(kbString: string): string {
   const match = kbString.match(/(\d+)\s*KB/i);
   if (!match) return kbString || "Unknown size";
@@ -200,9 +236,15 @@ export async function fetchH5aiDirectory(urlStr: string): Promise<{ href: string
     return cached.items;
   }
 
+  // Fast check: If BDIX LAN is not reachable (or on Vercel), do not hang
+  const isOnline = await checkBdixAvailability();
+  if (!isOnline) {
+    return [];
+  }
+
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), 2000);
     const res = await fetch(urlStr, { signal: controller.signal, next: { revalidate: 300 } });
     clearTimeout(timeout);
     if (!res.ok) return [];
@@ -264,10 +306,50 @@ export async function getFolderStreams(folderUrl: string, title: string, year: n
   return streams;
 }
 
+// Instant snapshot streams for cloud/Vercel (0ms latency)
+export function getSnapshotStreams(title: string, year?: number): DhakaFlixStream[] {
+  const cleanTitle = title.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!cleanTitle) return [];
+
+  const allSnapshotItems: any[] = Object.values(catalogSnapshot).flatMap(
+    (cat: any) => cat.items || []
+  );
+
+  const match = allSnapshotItems.find((m: any) => {
+    const norm = (m.title || m.rawName || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    return norm.includes(cleanTitle) || cleanTitle.includes(norm);
+  });
+
+  if (match) {
+    return [
+      {
+        title: match.title,
+        year: match.year || year || 2026,
+        quality: match.quality || "1080p",
+        fileName: `${match.rawName || match.title}.mkv`,
+        streamUrl: match.serverUrl,
+        folderUrl: match.serverUrl,
+        fileSizeBytes: 0,
+        fileSizeFormatted: "Direct BDIX Stream",
+        sourceServer: match.sourceServer || "DhakaFlix",
+        category: match.category || "DhakaFlix Media",
+        modifiedDate: match.modifiedDate || "2026",
+      },
+    ];
+  }
+
+  return [];
+}
+
 // Find streams across all servers for a title
 export async function findDhakaFlixStreams(title: string, year?: number): Promise<DhakaFlixStream[]> {
   const cleanTitle = title.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (!cleanTitle) return [];
+
+  const isOnline = await checkBdixAvailability();
+  if (!isOnline) {
+    return getSnapshotStreams(title, year);
+  }
 
   const found: DhakaFlixStream[] = [];
   const searchSections = [
@@ -293,7 +375,7 @@ export async function findDhakaFlixStreams(title: string, year?: number): Promis
     } catch {}
   }
 
-  return found;
+  return found.length > 0 ? found : getSnapshotStreams(title, year);
 }
 
 export interface DhakaFlixSearchResult {
@@ -312,10 +394,60 @@ export interface DhakaFlixSearchResult {
   modifiedDate: string;
 }
 
+// Fast in-memory search across catalog snapshot (0ms latency, zero network overhead)
+export function searchSnapshotCatalog(query: string, maxResults = 36): DhakaFlixSearchResult[] {
+  const cleanQ = query.trim().toLowerCase();
+  if (!cleanQ) return [];
+
+  const allSnapshotItems: any[] = Object.values(catalogSnapshot).flatMap(
+    (cat: any) => cat.items || []
+  );
+
+  const seen = new Set<string>();
+  const results: DhakaFlixSearchResult[] = [];
+
+  for (const item of allSnapshotItems) {
+    const idKey = item.id || item.serverUrl;
+    if (seen.has(idKey)) continue;
+
+    const titleMatch = item.title?.toLowerCase().includes(cleanQ);
+    const rawMatch = item.rawName?.toLowerCase().includes(cleanQ);
+    const catMatch = item.category?.toLowerCase().includes(cleanQ);
+
+    if (titleMatch || rawMatch || catMatch) {
+      seen.add(idKey);
+      results.push({
+        id: item.id || Buffer.from(item.serverUrl).toString("base64url"),
+        title: item.title,
+        rawName: item.rawName || item.title,
+        year: item.year || 2026,
+        quality: item.quality || "1080p",
+        serverUrl: item.serverUrl,
+        sourceServer: item.sourceServer || "Server 14",
+        category: item.category || "DhakaFlix Media",
+        poster: item.poster || `${item.serverUrl}a_AL_.jpg`,
+        backdrop: item.backdrop,
+        overview: item.overview,
+        rating: item.rating,
+        modifiedDate: item.modifiedDate || "2026",
+      });
+      if (results.length >= maxResults) break;
+    }
+  }
+
+  return results;
+}
+
 // Global search across all major DhakaFlix sections
 export async function searchDhakaFlixCatalog(query: string, maxResults = 36): Promise<DhakaFlixSearchResult[]> {
   const cleanQ = query.trim().toLowerCase();
   if (!cleanQ) return [];
+
+  // Check if BDIX LAN is actually available (returns false immediately on Vercel)
+  const isOnline = await checkBdixAvailability();
+  if (!isOnline) {
+    return searchSnapshotCatalog(cleanQ, maxResults);
+  }
 
   const searchSections = [
     DHAKA_SECTIONS.movies1080p,
@@ -356,5 +488,5 @@ export async function searchDhakaFlixCatalog(query: string, maxResults = 36): Pr
     })
   );
 
-  return results.slice(0, maxResults);
+  return results.length > 0 ? results.slice(0, maxResults) : searchSnapshotCatalog(cleanQ, maxResults);
 }

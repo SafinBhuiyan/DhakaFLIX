@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findDhakaFlixStreams } from "@/lib/dhakaflix";
-import catalogSnapshot from "@/lib/catalog-snapshot.json";
+import { findDhakaFlixStreams, getSnapshotStreams, checkBdixAvailability } from "@/lib/dhakaflix";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -13,63 +12,23 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    let streams = await findDhakaFlixStreams(title, year);
+    const isOnline = await checkBdixAvailability();
 
-    // If running in cloud (Vercel) where direct BDIX inspection fails, provide stream link from snapshot
+    // 1. If in cloud (Vercel), resolve stream from snapshot instantly (0ms)
+    if (!isOnline) {
+      const streams = getSnapshotStreams(title, year);
+      return NextResponse.json({ streams });
+    }
+
+    // 2. If on local BDIX LAN, inspect folders
+    let streams = await findDhakaFlixStreams(title, year);
     if (streams.length === 0) {
-      const allSnapshotItems: any[] = Object.values(catalogSnapshot).flatMap(
-        (cat: any) => cat.items || []
-      );
-      const match = allSnapshotItems.find(
-        (m: any) =>
-          m.title?.toLowerCase() === title.toLowerCase() ||
-          m.rawName?.toLowerCase().includes(title.toLowerCase())
-      );
-      if (match) {
-        streams.push({
-          title: match.title,
-          quality: match.quality || "1080p",
-          fileName: `${match.rawName || match.title}.mkv`,
-          streamUrl: match.serverUrl,
-          folderUrl: match.serverUrl,
-          fileSizeBytes: 0,
-          fileSizeFormatted: "Direct BDIX Stream",
-          sourceServer: match.sourceServer || "DhakaFlix",
-          category: match.category || "Movies",
-          modifiedDate: match.modifiedDate || "2026",
-        });
-      }
+      streams = getSnapshotStreams(title, year);
     }
 
     return NextResponse.json({ streams });
-  } catch (err: any) {
-    const allSnapshotItems: any[] = Object.values(catalogSnapshot).flatMap(
-      (cat: any) => cat.items || []
-    );
-    const match = allSnapshotItems.find(
-      (m: any) =>
-        m.title?.toLowerCase() === title.toLowerCase() ||
-        m.rawName?.toLowerCase().includes(title.toLowerCase())
-    );
-    if (match) {
-      return NextResponse.json({
-        streams: [
-          {
-            title: match.title,
-            quality: match.quality || "1080p",
-            fileName: `${match.rawName || match.title}.mkv`,
-            streamUrl: match.serverUrl,
-            folderUrl: match.serverUrl,
-            fileSizeBytes: 0,
-            fileSizeFormatted: "Direct BDIX Stream",
-            sourceServer: match.sourceServer || "DhakaFlix",
-            category: match.category || "Movies",
-            modifiedDate: match.modifiedDate || "2026",
-          },
-        ],
-      });
-    }
-
-    return NextResponse.json({ error: err.message, streams: [] }, { status: 500 });
+  } catch {
+    const streams = getSnapshotStreams(title, year);
+    return NextResponse.json({ streams });
   }
 }

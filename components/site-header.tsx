@@ -23,7 +23,7 @@ export function SiteHeader({ onSearch, onSelectMovie, onPlayVlc }: SiteHeaderPro
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Debounced live search suggestions
+  // Debounced live search suggestions with active cancellation
   useEffect(() => {
     const q = searchInput.trim();
     if (q.length < 2) {
@@ -33,20 +33,29 @@ export function SiteHeader({ onSearch, onSelectMovie, onPlayVlc }: SiteHeaderPro
     }
 
     setLoadingSuggestions(true);
+    const controller = new AbortController();
+
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=6`);
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=6`, {
+          signal: controller.signal,
+        });
         const data = await res.json();
         setSuggestions(data.results || []);
         setShowDropdown(true);
-      } catch (err) {
-        console.error("Live search failed:", err);
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          console.error("Live search failed:", err);
+        }
       } finally {
         setLoadingSuggestions(false);
       }
-    }, 250);
+    }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [searchInput]);
 
   // Global keyboard shortcut '/' to focus search & Escape to dismiss
