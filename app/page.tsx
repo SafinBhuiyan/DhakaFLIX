@@ -90,8 +90,42 @@ export default function Home() {
     return () => controller.abort();
   }, [searchQuery]);
 
-  // 1-Click Native Play in VLC
+  // 1-Click Native Play in VLC (with full Android & iOS mobile support)
   const handlePlayVlc = async (streamUrl: string, title: string) => {
+    const isMobile = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+
+    if (isMobile) {
+      setToastMessage({ text: `Opening "${title}" in VLC Mobile...`, type: "success" });
+
+      if (isAndroid) {
+        // Android Intent specifically invoking VLC for Android
+        const cleanUrl = streamUrl.replace(/^https?:\/\//i, "");
+        const scheme = streamUrl.startsWith("https") ? "https" : "http";
+        const androidIntent = `intent://${cleanUrl}#Intent;package=org.videolan.vlc;type=video/*;scheme=${scheme};end`;
+
+        try {
+          window.location.href = androidIntent;
+        } catch {
+          window.location.href = `vlc://${streamUrl}`;
+        }
+      } else {
+        // iOS / iPadOS universal VLC URL scheme
+        window.location.href = `vlc://${streamUrl}`;
+      }
+
+      setTimeout(() => {
+        setToastMessage({
+          text: `Opened in VLC. If VLC didn't open automatically, download the .m3u playlist in the modal.`,
+          type: "success",
+        });
+      }, 2500);
+
+      setTimeout(() => setToastMessage(null), 5500);
+      return;
+    }
+
+    // Desktop
     setToastMessage({ text: `Launching VLC Media Player for "${title}"...`, type: "success" });
     try {
       const res = await fetch("/api/vlc/play", {

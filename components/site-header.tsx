@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Search, Play, Loader2, Star, ExternalLink, ArrowLeft } from "lucide-react";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 import { MoviePosterPlaceholder } from "@/components/movie-poster-placeholder";
+import { VlcIcon } from "@/components/vlc-icon";
 
 interface SiteHeaderProps {
   onSearch: (query: string) => void;
@@ -304,10 +305,11 @@ function SearchSuggestionRow({
               if (onSelectMovie) onSelectMovie(movie);
             }
           }}
-          className="p-2 rounded-lg bg-[#e50914] hover:bg-red-700 text-white shrink-0 shadow transition active:scale-95"
+          className="p-2 rounded-lg bg-orange-600/20 hover:bg-orange-600/35 border border-orange-500/40 text-orange-400 shrink-0 shadow transition active:scale-95 flex items-center justify-center min-w-[32px] min-h-[32px]"
           title="Play in VLC"
+          aria-label="Play in VLC"
         >
-          <Play className="w-3.5 h-3.5 fill-current" />
+          <VlcIcon size={15} fill="#FF8800" />
         </button>
       )}
     </div>

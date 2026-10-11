@@ -5,6 +5,7 @@ import { Play, Download, Copy, Check, X, HardDrive, Star, Loader2, ExternalLink 
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 import { DhakaFlixStream } from "@/lib/dhakaflix";
 import { MoviePosterPlaceholder } from "@/components/movie-poster-placeholder";
+import { VlcIcon } from "@/components/vlc-icon";
 
 interface StreamModalProps {
   movie: CatalogMovie | null;
@@ -139,6 +140,14 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
               {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-[#e50914]" />}
             </div>
 
+            {/* Mobile & Desktop Tip */}
+            <div className="p-2.5 rounded-xl bg-orange-950/20 border border-orange-500/20 flex items-center gap-2.5 text-[11px] text-orange-200/90">
+              <VlcIcon size={16} fill="#FF8800" className="shrink-0" />
+              <div className="leading-tight">
+                <span className="font-semibold text-white">VLC 1Gbps Streaming:</span> Tap <strong className="text-orange-400">Play in VLC</strong> to stream directly (supports mobile & desktop), or download the <strong className="text-orange-400">.m3u</strong> playlist.
+              </div>
+            </div>
+
             {loading ? (
               <div className="p-6 text-center text-xs text-neutral-400 space-y-2 bg-[#18181b] rounded-xl border border-white/5">
                 <Loader2 className="w-5 h-5 animate-spin mx-auto text-[#e50914]" />
@@ -187,16 +196,27 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => onPlayVlc(stream.streamUrl, movie.title)}
-                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#e50914] hover:bg-red-700 text-white text-xs font-bold shadow transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs font-bold shadow-md shadow-orange-950/40 transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
+                        title="Play in VLC Media Player (Desktop & Mobile)"
                       >
-                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <VlcIcon size={14} fill="#FFFFFF" />
                         <span>Play in VLC</span>
                       </button>
 
                       <a
+                        href={stream.streamUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-2 rounded-lg bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition flex items-center justify-center min-w-[32px] min-h-[32px]"
+                        title="Stream directly in browser"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+
+                      <a
                         href={`/api/vlc/playlist?url=${encodeURIComponent(stream.streamUrl)}&title=${encodeURIComponent(movie.title)}`}
                         download
-                        className="p-2 rounded-lg bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition"
+                        className="p-2 rounded-lg bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition flex items-center justify-center min-w-[32px] min-h-[32px]"
                         title="Download .m3u playlist"
                       >
                         <Download className="w-3.5 h-3.5" />
@@ -204,7 +224,7 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
 
                       <button
                         onClick={() => handleCopy(stream.streamUrl)}
-                        className="p-2 rounded-lg bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition"
+                        className="p-2 rounded-lg bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition flex items-center justify-center min-w-[32px] min-h-[32px]"
                         title="Copy direct stream link"
                       >
                         {copiedUrl === stream.streamUrl ? (
