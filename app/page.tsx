@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { SiteHeader } from "@/components/site-header";
-import { ServerNavBar } from "@/components/server-nav-bar";
+import { MobileNavBar } from "@/components/mobile-nav-bar";
 import { HeroSlider } from "@/components/hero-slider";
 import { HomeMediaRail, HomeRailSection } from "@/components/home-media-rail";
 import { MovieGridCard } from "@/components/movie-grid-card";
@@ -263,18 +263,24 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#0e0e0f] text-neutral-200 flex flex-col font-sans">
-      {/* 1. Top Header with Live Search Suggestions */}
+      {/* 1. Top Header with Netflix-Style Navigation & Live Search Suggestions */}
       <SiteHeader
+        activeCategory={activeCategory}
+        onSelectCategory={handleSelectCategory}
         onSearch={setSearchQuery}
         onSelectMovie={setSelectedMovie}
         onPlayVlc={handlePlayVlc}
         onHomeClick={() => handleSelectCategory("home")}
       />
-
-      {/* 2. Accessible Category Navigation Bar */}
-      <ServerNavBar
+      {/* Mobile Bottom Navigation */}
+      <MobileNavBar
         activeCategory={activeCategory}
         onSelectCategory={handleSelectCategory}
+        onOpenSearch={() => {
+          // Focus the search input in SiteHeader if it exists
+          const searchInput = document.querySelector('input[name="search"]') as HTMLInputElement | null;
+          if (searchInput) searchInput.focus();
+        }}
       />
 
       {/* 3. Main Content Container */}

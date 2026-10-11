@@ -58,7 +58,7 @@ export function HeroSlider({ movie, movies, onPlayVlc, onSelectMovie }: HeroSlid
 
   return (
     <div
-      className="group relative w-full rounded-2xl overflow-hidden bg-[#18181b] border border-white/10 shadow-2xl min-h-[300px] sm:min-h-[380px] md:min-h-[440px] flex items-end select-none transition-all"
+      className="group relative w-full rounded-2xl overflow-hidden bg-[#18181b] border border-white/10 shadow-2xl min-h-[420px] sm:min-h-[420px] md:min-h-[480px] flex items-end select-none transition-all"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -158,9 +158,9 @@ export function HeroSlider({ movie, movies, onPlayVlc, onSelectMovie }: HeroSlid
         </div>
       </div>
 
-      {/* Slide Indicators (Bottom Right) */}
+      {/* Slide Indicators — top-center on mobile, bottom-right on sm+ */}
       {slideList.length > 1 && (
-        <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-8 z-20 flex items-center gap-1.5 bg-black/40 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-sm">
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 sm:translate-x-0 sm:left-auto sm:top-auto sm:bottom-6 sm:right-8 z-20 flex items-center gap-1.5 bg-black/40 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-sm">
           {slideList.map((_, idx) => (
             <button
               key={`dot-${idx}`}

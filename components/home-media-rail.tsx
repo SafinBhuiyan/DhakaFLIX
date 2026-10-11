@@ -80,14 +80,10 @@ export function HomeMediaRail({
       <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
         <div className="flex items-center gap-2.5">
           <span className="w-1.5 h-4 bg-[#e50914] rounded-sm shrink-0" />
-          <Icon className="w-4 h-4 text-[#e50914] shrink-0" aria-hidden="true" />
           <div className="flex items-baseline gap-2 flex-wrap">
             <h2 className="text-sm sm:text-base font-bold uppercase tracking-wider text-white">
               {section.label}
             </h2>
-            <span className="text-[11px] font-medium text-neutral-400">
-              {section.server} • {section.total > 0 ? `${section.total}+ Titles` : "Instant BDIX"}
-            </span>
           </div>
         </div>
 
@@ -98,7 +94,7 @@ export function HomeMediaRail({
             onClick={() => onSelectCategory(section.id)}
             className="group inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-400 hover:text-white px-2.5 py-1 rounded-lg hover:bg-white/5 transition"
           >
-            <span>Explore All</span>
+            <span>More</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform text-[#e50914]" />
           </button>
 
