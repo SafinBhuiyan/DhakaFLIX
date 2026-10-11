@@ -10,6 +10,7 @@ import {
   Clapperboard,
   Globe,
   Award,
+  Glasses,
 } from "lucide-react";
 
 export interface ServerSection {
@@ -19,15 +20,18 @@ export interface ServerSection {
 }
 
 export const SERVER_SECTIONS: ServerSection[] = [
-  { id: "movies1080p", label: "Movies (1080p)", icon: Film },
-  { id: "movies720p", label: "Movies (720p)", icon: Video },
+  { id: "movies1080p", label: "English Movies -1080p", icon: Film },
+  { id: "movies720p", label: "English Movies", icon: Video },
   { id: "hindi", label: "Hindi Movies", icon: Flame },
-  { id: "southDubbed", label: "South (Hindi Dubbed)", icon: Zap },
+  { id: "southMovies", label: "South Indian Movies", icon: Sparkles },
+  { id: "southDubbed", label: "South-Movie Hindi Dubbed", icon: Zap },
+  { id: "kolkata", label: "Kolkata Bangla Movies", icon: Sparkles },
+  { id: "animation1080p", label: "Animation Movies -1080p", icon: Clapperboard },
+  { id: "animation", label: "Animation Movies", icon: Clapperboard },
+  { id: "foreign", label: "Foreign Language Movies", icon: Globe },
+  { id: "imdb250", label: "IMDb Top-250 Movies", icon: Award },
+  { id: "movies3D", label: "3D Movies", icon: Glasses },
   { id: "tvSeries", label: "TV & Web Series", icon: Tv },
-  { id: "kolkata", label: "Bangla Movies", icon: Sparkles },
-  { id: "animation1080p", label: "Animation", icon: Clapperboard },
-  { id: "foreign", label: "Foreign Language", icon: Globe },
-  { id: "imdb250", label: "IMDb Top-250", icon: Award },
 ];
 
 interface ServerNavBarProps {

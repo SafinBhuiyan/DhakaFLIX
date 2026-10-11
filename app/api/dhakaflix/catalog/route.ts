@@ -17,6 +17,9 @@ export interface CatalogMovie {
   overview?: string;
   rating?: number;
   modifiedDate: string;
+  videoUrl?: string;
+  videoFileName?: string;
+  videoFileSize?: string;
 }
 
 let catalogCache: Record<string, { items: CatalogMovie[]; savedAt: number }> = {};
@@ -47,6 +50,9 @@ export async function GET(req: NextRequest) {
     const mappedItems = (fallback?.items || []).slice(0, limit).map((m: any) => ({
       ...m,
       serverUrl: m.videoUrl || m.serverUrl,
+      videoUrl: m.videoUrl,
+      videoFileName: m.videoFileName,
+      videoFileSize: m.videoFileSize,
     }));
     return NextResponse.json({
       category: fallback?.category || sec.label,
@@ -65,6 +71,9 @@ export async function GET(req: NextRequest) {
         const mappedItems = fallback.items.slice(0, limit).map((m: any) => ({
           ...m,
           serverUrl: m.videoUrl || m.serverUrl,
+          videoUrl: m.videoUrl,
+          videoFileName: m.videoFileName,
+          videoFileSize: m.videoFileSize,
         }));
         return NextResponse.json({
           category: fallback.category || sec.label,
@@ -126,10 +135,17 @@ export async function GET(req: NextRequest) {
     // Cloud fallback (Vercel)
     const fallback = (catalogSnapshot as any)[categoryKey] || (catalogSnapshot as any).movies1080p;
     if (fallback && fallback.items?.length > 0) {
+      const mappedItems = fallback.items.slice(0, limit).map((m: any) => ({
+        ...m,
+        serverUrl: m.videoUrl || m.serverUrl,
+        videoUrl: m.videoUrl,
+        videoFileName: m.videoFileName,
+        videoFileSize: m.videoFileSize,
+      }));
       return NextResponse.json({
         category: fallback.category || sec.label,
         server: fallback.server || sec.server,
-        items: fallback.items.slice(0, limit),
+        items: mappedItems,
       });
     }
 

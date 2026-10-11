@@ -15,7 +15,7 @@ export default function Home() {
 
   const [movies, setMovies] = useState<CatalogMovie[]>([]);
   const [seriesList, setSeriesList] = useState<CatalogMovie[]>([]);
-  const [categoryLabel, setCategoryLabel] = useState<string>("English Movies (1080p)");
+  const [categoryLabel, setCategoryLabel] = useState<string>("English Movies -1080p");
   const [serverName, setServerName] = useState<string>("Server 14");
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -40,20 +40,23 @@ export default function Home() {
   const loadData = async (cat: string) => {
     setLoading(true);
     try {
-      const [moviesRes, seriesRes] = await Promise.all([
-        fetch(`/api/dhakaflix/catalog?category=${cat}&limit=50`),
-        fetch(`/api/dhakaflix/catalog?category=tvSeries&limit=12`),
-      ]);
+      const fetchSeries = seriesList.length === 0;
+      const requests = [fetch(`/api/dhakaflix/catalog?category=${cat}&limit=50`)];
+      if (fetchSeries) {
+        requests.push(fetch(`/api/dhakaflix/catalog?category=tvSeries&limit=12`));
+      }
 
-      const [moviesData, seriesData] = await Promise.all([
-        moviesRes.json(),
-        seriesRes.json(),
-      ]);
+      const responses = await Promise.all(requests);
+      const moviesData = await responses[0].json();
 
       setMovies(moviesData.items || []);
       setCategoryLabel(moviesData.category || "DhakaFlix Media");
       setServerName(moviesData.server || "Server 14");
-      setSeriesList(seriesData.items || []);
+
+      if (fetchSeries && responses[1]) {
+        const seriesData = await responses[1].json();
+        setSeriesList(seriesData.items || []);
+      }
     } catch (err) {
       console.error("Failed to load catalog:", err);
     } finally {
@@ -146,16 +149,33 @@ export default function Home() {
     }
 
     // Remote / Vercel Production Desktop
-    setToastMessage({ text: `Opening "${title}" in VLC Media Player...`, type: "success" });
-    window.location.href = `vlc://${streamUrl}`;
+    setToastMessage({ text: `Streaming "${title}" in VLC Media Player...`, type: "success" });
+
+    // 1. Automatically trigger .m3u playlist download (associated with VLC by default on Windows/Mac)
+    const playlistUrl = `/api/vlc/playlist?url=${encodeURIComponent(streamUrl)}&title=${encodeURIComponent(title)}`;
+    const link = document.createElement("a");
+    link.href = playlistUrl;
+    link.download = `${title.replace(/[^a-zA-Z0-9_\-\. ]/g, "_")}.m3u`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // 2. Also try native vlc:// scheme in background for environments that support it
+    try {
+      const iframe = document.createElement("iframe");
+      iframe.style.display = "none";
+      iframe.src = `vlc://${streamUrl}`;
+      document.body.appendChild(iframe);
+      setTimeout(() => iframe.remove(), 2000);
+    } catch {}
 
     setTimeout(() => {
       setToastMessage({
-        text: `Launched in VLC. If it didn't open, click the Download Playlist icon in the streams modal.`,
+        text: `VLC stream ready! Click the playlist file (or enable "Always open files of this type" in browser).`,
         type: "success",
       });
-    }, 2500);
-    setTimeout(() => setToastMessage(null), 5500);
+    }, 2000);
+    setTimeout(() => setToastMessage(null), 6000);
   };
 
   const isSearching = !!searchQuery.trim();

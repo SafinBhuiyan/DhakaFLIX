@@ -34,29 +34,36 @@ export function MoviePosterPlaceholder({
     );
   }
 
-  // Medium thumbnail for Stream Modal (e.g. 80x112px)
+  // Rich placeholder for Stream Modal
   if (size === "modal") {
     return (
       <div
-        className={`w-20 h-28 rounded-lg bg-gradient-to-b from-[#25252b] via-[#17171a] to-[#0c0c0e] border border-white/10 flex flex-col items-center justify-between p-2 text-center shrink-0 select-none shadow-md ${className}`}
+        className={`w-full h-full rounded-2xl bg-gradient-to-b from-[#25252b] via-[#17171a] to-[#0c0c0e] border border-white/10 flex flex-col items-center justify-between p-3.5 text-center shrink-0 select-none shadow-xl relative overflow-hidden ${className}`}
         title={title}
       >
-        <div className="w-full flex justify-end">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(229,9,20,0.15)_0%,_transparent_70%)] pointer-events-none" />
+        <div className="w-full flex justify-between items-center z-10">
+          <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider font-mono">
+            {category || "DhakaFlix"}
+          </span>
           {quality && (
-            <span className="text-[8px] font-bold bg-[#e50914] text-white px-1 py-0.2 rounded">
+            <span className="text-[9px] font-bold bg-[#e50914] text-white px-1.5 py-0.5 rounded shadow">
               {quality}
             </span>
           )}
         </div>
-        <div className="flex flex-col items-center gap-1.5">
-          <Clapperboard className="w-5 h-5 text-[#e50914]/80" />
-          <span className="text-[9px] font-bold text-neutral-300 line-clamp-2 uppercase">
+        <div className="flex flex-col items-center gap-2 z-10 my-auto px-1">
+          <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-[#e50914] shadow">
+            <Clapperboard className="w-5 h-5" />
+          </div>
+          <span className="text-xs font-bold text-neutral-200 line-clamp-3 uppercase tracking-wide">
             {title}
           </span>
         </div>
-        <span className="text-[8px] text-neutral-500 font-mono tracking-wider">
-          {year || "DHAKAFLIX"}
-        </span>
+        <div className="w-full pt-1.5 border-t border-white/5 z-10 flex items-center justify-between text-[9px] text-neutral-500 font-mono">
+          <span>{year || "2026"}</span>
+          <span>BDIX 1Gbps</span>
+        </div>
       </div>
     );
   }

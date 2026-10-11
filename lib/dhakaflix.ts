@@ -43,13 +43,13 @@ export const DHAKA_SERVERS = {
 export const DHAKA_SECTIONS: Record<string, { id: string; label: string; server: string; url: string }> = {
   movies1080p: {
     id: "movies1080p",
-    label: "English Movies (1080p)",
+    label: "English Movies -1080p",
     server: "Server 14",
     url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/English%20Movies%20%281080p%29/%282026%29%201080p/`,
   },
   movies720p: {
     id: "movies720p",
-    label: "English Movies (720p)",
+    label: "English Movies",
     server: "Server 7",
     url: `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/English%20Movies/%282026%29/`,
   },
@@ -85,7 +85,7 @@ export const DHAKA_SECTIONS: Record<string, { id: string; label: string; server:
   },
   animation1080p: {
     id: "animation1080p",
-    label: "Animation Movies (1080p)",
+    label: "Animation Movies -1080p",
     server: "Server 14",
     url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Animation%20Movies%20%281080p%29/`,
   },
@@ -307,18 +307,23 @@ export async function getFolderStreams(folderUrl: string, title: string, year: n
 }
 
 // Instant snapshot streams for cloud/Vercel (0ms latency)
-export function getSnapshotStreams(title: string, year?: number): DhakaFlixStream[] {
-  const cleanTitle = title.toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (!cleanTitle) return [];
+export function getSnapshotStreams(title: string, year?: number, url?: string): DhakaFlixStream[] {
+  const cleanTitle = title ? title.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
 
   const allSnapshotItems: any[] = Object.values(catalogSnapshot).flatMap(
     (cat: any) => cat.items || []
   );
 
-  const match = allSnapshotItems.find((m: any) => {
-    const norm = (m.title || m.rawName || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    return norm.includes(cleanTitle) || cleanTitle.includes(norm);
-  });
+  let match = url
+    ? allSnapshotItems.find((m: any) => m.videoUrl === url || m.serverUrl === url)
+    : null;
+
+  if (!match && cleanTitle) {
+    match = allSnapshotItems.find((m: any) => {
+      const norm = (m.title || m.rawName || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      return norm.includes(cleanTitle) || cleanTitle.includes(norm);
+    });
+  }
 
   if (match) {
     const directStreamUrl = match.videoUrl || match.serverUrl;
@@ -396,6 +401,9 @@ export interface DhakaFlixSearchResult {
   overview?: string;
   rating?: number;
   modifiedDate: string;
+  videoUrl?: string;
+  videoFileName?: string;
+  videoFileSize?: string;
 }
 
 // Fast in-memory search across catalog snapshot (0ms latency, zero network overhead)
@@ -434,6 +442,9 @@ export function searchSnapshotCatalog(query: string, maxResults = 36): DhakaFlix
         overview: item.overview,
         rating: item.rating,
         modifiedDate: item.modifiedDate || "2026",
+        videoUrl: item.videoUrl,
+        videoFileName: item.videoFileName,
+        videoFileSize: item.videoFileSize,
       });
       if (results.length >= maxResults) break;
     }
