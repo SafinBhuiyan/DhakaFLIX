@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCategoryMovieFolders, parseFolderTitle, DHAKA_SECTIONS, checkBdixAvailability } from "@/lib/dhakaflix";
 import { searchTMDb, getPosterUrl, getBackdropUrl } from "@/lib/tmdb";
-import catalogSnapshot from "@/lib/catalog-snapshot.json";
+import { getHomeCatalog, getCategoryCatalog } from "@/lib/catalog-store";
 
 export interface CatalogMovie {
   id: string;
@@ -35,66 +35,12 @@ export async function GET(req: NextRequest) {
   const limit = Math.max(1, parseInt(searchParams.get("limit") || "24", 10));
   const startIndex = (page - 1) * limit;
 
-  // Dedicated Curated Home Payload: 1-Request Instant Multi-Section Catalog
+  // Dedicated Curated Home Payload: 1-Request Instant Multi-Section Catalog (~270KB payload)
   if (categoryKey === "home") {
-    const HOME_SECTIONS_CONFIG = [
-      { key: "movies1080p", label: "Trending 1080p Movies", server: "Server 14" },
-      { key: "tvSeries", label: "TV & Web Series", server: "Server 12" },
-      { key: "hindi", label: "Hindi & Bollywood Hits", server: "Server 14" },
-      { key: "imdb250", label: "IMDb Top-250 Masterpieces", server: "Server 14" },
-      { key: "southDubbed", label: "South-Movie Hindi Dubbed", server: "Server 14" },
-      { key: "animation1080p", label: "Animation & Anime (1080p)", server: "Server 14" },
-      { key: "foreign", label: "Foreign Language Cinema", server: "Server 7" },
-      { key: "kolkata", label: "Kolkata Bangla Movies", server: "Server 7" },
-      { key: "movies720p", label: "English Movies (720p)", server: "Server 7" },
-    ];
-
-    const snapshot = catalogSnapshot as Record<string, any>;
-    const sections = HOME_SECTIONS_CONFIG.map((secDef) => {
-      const data = snapshot[secDef.key];
-      const items: CatalogMovie[] = (data?.items || []).slice(0, 20).map((m: any) => ({
-        ...m,
-        serverUrl: m.serverUrl,
-        videoUrl: m.videoUrl,
-        videoFileName: m.videoFileName,
-        videoFileSize: m.videoFileSize,
-      }));
-      return {
-        id: secDef.key,
-        label: secDef.label,
-        server: data?.server || secDef.server,
-        total: data?.items?.length || items.length,
-        items,
-      };
-    });
-
-    // Curate top 5 high-rating items with backdrop for the Hero Spotlight
-    const spotlightCandidates = [
-      ...(snapshot.movies1080p?.items || []).slice(0, 8),
-      ...(snapshot.imdb250?.items || []).slice(0, 6),
-      ...(snapshot.tvSeries?.items || []).slice(0, 6),
-    ];
-    const spotlight = spotlightCandidates
-      .filter((m: any) => m.backdrop && m.overview)
-      .slice(0, 5)
-      .map((m: any) => ({
-        ...m,
-        serverUrl: m.serverUrl,
-        videoUrl: m.videoUrl,
-        videoFileName: m.videoFileName,
-        videoFileSize: m.videoFileSize,
-      }));
-
-    return NextResponse.json(
-      {
-        isHome: true,
-        category: "Home",
-        server: "All Storage Nodes",
-        spotlight,
-        sections,
-      },
-      { headers: CACHE_HEADERS }
-    );
+    const homeData = await getHomeCatalog();
+    if (homeData) {
+      return NextResponse.json(homeData, { headers: CACHE_HEADERS });
+    }
   }
 
   // Map category to real DhakaFlix section
@@ -103,7 +49,7 @@ export async function GET(req: NextRequest) {
   // Fast check: If in cloud (Vercel) without direct BDIX LAN access, return paginated snapshot instantly
   const isOnline = await checkBdixAvailability();
   if (!isOnline) {
-    const fallback = (catalogSnapshot as any)[categoryKey] || (catalogSnapshot as any).movies1080p;
+    const fallback = await getCategoryCatalog(categoryKey);
     const allItems: any[] = fallback?.items || [];
     const total = allItems.length;
     const paginated = allItems.slice(startIndex, startIndex + limit);
@@ -135,7 +81,7 @@ export async function GET(req: NextRequest) {
     const movieFolders = await getCategoryMovieFolders(categoryKey);
 
     if (movieFolders.length === 0) {
-      const fallback = (catalogSnapshot as any)[categoryKey] || (catalogSnapshot as any).movies1080p;
+      const fallback = await getCategoryCatalog(categoryKey);
       const allItems: any[] = fallback?.items || [];
       const total = allItems.length;
       const paginated = allItems.slice(startIndex, startIndex + limit);
@@ -239,7 +185,7 @@ export async function GET(req: NextRequest) {
     );
   } catch (err: any) {
     // Cloud fallback (Vercel)
-    const fallback = (catalogSnapshot as any)[categoryKey] || (catalogSnapshot as any).movies1080p;
+    const fallback = await getCategoryCatalog(categoryKey);
     const allItems: any[] = fallback?.items || [];
     const total = allItems.length;
     const paginated = allItems.slice(startIndex, startIndex + limit);

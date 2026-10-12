@@ -1,4 +1,4 @@
-import catalogSnapshot from "@/lib/catalog-snapshot.json";
+import { findTvSeriesItem, findCatalogStreamItem, searchModularCatalog } from "./catalog-store";
 
 export interface DhakaFlixStream {
   title: string;
@@ -500,6 +500,80 @@ export async function getShowEpisodes(
   }
 
   try {
+    // 0. Check if the show has real pre-indexed seasons & episodes in data/catalog/tvSeries.json
+    const catalogItem = await findTvSeriesItem(folderUrl, title);
+    if (catalogItem?.seasons && Array.isArray(catalogItem.seasons) && catalogItem.seasons.length > 0) {
+      // Find TMDb Show ID to enrich episode metadata (names, overviews, still thumbnails)
+      let tmdbShowId: number | null = null;
+      try {
+        const cleanTitle = title.replace(/[\(\[]?TV\s+(?:Mini\s+)?Series[^\)\]]*[\)\]]?/i, "").trim();
+        const tmdbRes = await fetch(
+          `${TMDB_SERIES_BASE}/search/tv?api_key=${TMDB_SERIES_API_KEY}&query=${encodeURIComponent(cleanTitle)}`,
+          { signal: AbortSignal.timeout(3000) }
+        );
+        if (tmdbRes.ok) {
+          const tmdbData = await tmdbRes.json();
+          tmdbShowId = tmdbData.results?.[0]?.id || null;
+        }
+      } catch {}
+
+      // Map verified real seasons and episodes, merging TMDb episode details if available
+      const realSeasons: DhakaSeason[] = await Promise.all(
+        catalogItem.seasons.map(async (s: any) => {
+          let tmdbEps: any[] = [];
+          if (tmdbShowId) {
+            try {
+              const sRes = await fetch(
+                `${TMDB_SERIES_BASE}/tv/${tmdbShowId}/season/${s.seasonNumber}?api_key=${TMDB_SERIES_API_KEY}`,
+                { signal: AbortSignal.timeout(3000) }
+              );
+              if (sRes.ok) {
+                const sData = await sRes.json();
+                tmdbEps = sData.episodes || [];
+              }
+            } catch {}
+          }
+
+          const episodes: DhakaEpisode[] = s.episodes.map((ep: any, idx: number) => {
+            const epNum = ep.episodeNumber || idx + 1;
+            const tmdbEp = tmdbEps.find((e: any) => e.episode_number === epNum);
+            return {
+              id: Buffer.from(ep.streamUrl || `${s.folderUrl}_E${epNum}`).toString("base64url"),
+              episodeNumber: epNum,
+              seasonNumber: s.seasonNumber,
+              title: tmdbEp?.name || ep.title || `Episode ${epNum}`,
+              overview: tmdbEp?.overview || "",
+              still: tmdbEp?.still_path ? `https://image.tmdb.org/t/p/w500${tmdbEp.still_path}` : null,
+              voteAverage: tmdbEp?.vote_average,
+              fileName: ep.fileName,
+              streamUrl: ep.streamUrl,
+              fileSize: ep.fileSize,
+              date: ep.date || tmdbEp?.air_date,
+            };
+          });
+
+          return {
+            seasonNumber: s.seasonNumber,
+            seasonName: s.seasonName || `Season ${s.seasonNumber}`,
+            folderUrl: s.folderUrl || folderUrl,
+            episodes,
+          };
+        })
+      );
+
+      const realResult: DhakaSeriesDetails = {
+        isSeries: realSeasons.length > 0 && realSeasons.some((s) => s.episodes.length > 0),
+        totalSeasons: realSeasons.length,
+        totalEpisodes: realSeasons.reduce((acc, s) => acc + s.episodes.length, 0),
+        seasons: realSeasons,
+      };
+
+      if (realResult.isSeries) {
+        showEpisodesCache.set(cacheKey, { data: realResult, savedAt: Date.now() });
+        return realResult;
+      }
+    }
+
     const isOnline = await checkBdixAvailability();
     let items: Array<{ href: string; name: string; date: string; size: string; isFolder: boolean }> = [];
     if (isOnline && folderUrl) {
@@ -870,83 +944,17 @@ function normalizeUrlKey(u: string): string {
 }
 
 export function getAllSnapshotItems(): SnapshotCatalogItem[] {
-  if (allSnapshotItemsCache) return allSnapshotItemsCache;
-
-  const items: SnapshotCatalogItem[] = [];
-  const snapshotObj = catalogSnapshot as Record<string, { items?: SnapshotCatalogItem[] }>;
-
-  for (const cat of Object.values(snapshotObj)) {
-    if (Array.isArray(cat?.items)) {
-      for (const item of cat.items) {
-        items.push(item);
-
-        if (item.serverUrl) {
-          snapshotByUrlCache.set(item.serverUrl, item);
-          snapshotByUrlCache.set(normalizeUrlKey(item.serverUrl), item);
-        }
-        if (item.videoUrl) {
-          snapshotByUrlCache.set(item.videoUrl, item);
-          snapshotByUrlCache.set(normalizeUrlKey(item.videoUrl), item);
-        }
-        if (item.id) {
-          snapshotByUrlCache.set(item.id, item);
-        }
-
-        const clean = (item.title || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-        if (clean && !snapshotByCleanTitleCache.has(clean)) {
-          snapshotByCleanTitleCache.set(clean, item);
-        }
-      }
-    }
-  }
-
-  allSnapshotItemsCache = items;
-  return allSnapshotItemsCache;
+  return [];
 }
 
-export function findSnapshotItem(url?: string, title?: string): SnapshotCatalogItem | undefined {
-  getAllSnapshotItems();
-
-  if (url) {
-    const match = snapshotByUrlCache.get(url) || snapshotByUrlCache.get(normalizeUrlKey(url));
-    if (match) return match;
-  }
-
-  if (title) {
-    const clean = title.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (clean) {
-      const match = snapshotByCleanTitleCache.get(clean);
-      if (match) return match;
-    }
-  }
-
-  return undefined;
+export async function findSnapshotItem(url?: string, title?: string): Promise<SnapshotCatalogItem | undefined> {
+  const match = await findCatalogStreamItem(url, title);
+  return match || undefined;
 }
 
-// Instant snapshot streams for cloud/Vercel (0ms latency, O(1) indexed lookup)
-export function getSnapshotStreams(title: string, year?: number, url?: string): DhakaFlixStream[] {
-  const cleanTitle = title ? title.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
-
-  let match: SnapshotCatalogItem | undefined;
-
-  // 1. Direct O(1) URL lookup
-  if (url) {
-    match = findSnapshotItem(url);
-  }
-
-  // 2. Direct O(1) exact cleaned title lookup
-  if (!match && cleanTitle) {
-    match = findSnapshotItem(undefined, title);
-  }
-
-  // 3. Fallback: Substring search across pre-indexed array (no flatMap GC overhead)
-  if (!match && cleanTitle) {
-    const allSnapshotItems = getAllSnapshotItems();
-    match = allSnapshotItems.find((m) => {
-      const norm = (m.title || m.rawName || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-      return norm.includes(cleanTitle) || cleanTitle.includes(norm);
-    });
-  }
+// Instant modular streams for cloud/Vercel (0ms latency, on-demand category lookup)
+export async function getSnapshotStreams(title: string, year?: number, url?: string): Promise<DhakaFlixStream[]> {
+  const match = await findCatalogStreamItem(url, title);
 
   if (match) {
     const directStreamUrl = match.videoUrl || match.serverUrl;
@@ -1040,59 +1048,38 @@ export interface DhakaFlixSearchResult {
   videoFileSize?: string;
 }
 
-// Fast in-memory search across catalog snapshot (0ms latency, zero network overhead, zero GC churn)
-export function searchSnapshotCatalog(query: string, maxResults = 36): DhakaFlixSearchResult[] {
-  const cleanQ = query.trim().toLowerCase();
-  if (!cleanQ) return [];
-
-  const allSnapshotItems = getAllSnapshotItems();
-  const seen = new Set<string>();
-  const results: DhakaFlixSearchResult[] = [];
-
-  for (const item of allSnapshotItems) {
-    const idKey = item.id || item.serverUrl;
-    if (seen.has(idKey)) continue;
-
-    const titleMatch = item.title?.toLowerCase().includes(cleanQ);
-    const rawMatch = item.rawName?.toLowerCase().includes(cleanQ);
-    const catMatch = item.category?.toLowerCase().includes(cleanQ);
-
-    if (titleMatch || rawMatch || catMatch) {
-      seen.add(idKey);
-      results.push({
-        id: item.id || Buffer.from(item.serverUrl).toString("base64url"),
-        title: item.title,
-        rawName: item.rawName || item.title,
-        year: item.year || 2026,
-        quality: item.quality || "1080p",
-        serverUrl: item.serverUrl,
-        sourceServer: item.sourceServer || "Server 14",
-        category: item.category || "DhakaFlix Media",
-        poster: item.poster || `${item.serverUrl}a_AL_.jpg`,
-        backdrop: item.backdrop,
-        overview: item.overview,
-        rating: item.rating,
-        modifiedDate: item.modifiedDate || "2026",
-        videoUrl: item.videoUrl,
-        videoFileName: item.videoFileName,
-        videoFileSize: item.videoFileSize,
-      });
-      if (results.length >= maxResults) break;
-    }
-  }
-
-  return results;
+// Fast search across modular catalog files on demand without ever loading 35k items at once
+export async function searchSnapshotCatalog(query: string, maxResults = 36): Promise<DhakaFlixSearchResult[]> {
+  const items = await searchModularCatalog(query, maxResults);
+  return items.map((item) => ({
+    id: item.id || Buffer.from(item.serverUrl).toString("base64url"),
+    title: item.title,
+    rawName: item.rawName || item.title,
+    year: item.year || 2026,
+    quality: item.quality || "1080p",
+    serverUrl: item.serverUrl,
+    sourceServer: item.sourceServer || "Server 14",
+    category: item.category || "DhakaFlix Media",
+    poster: item.poster || `${item.serverUrl}a_AL_.jpg`,
+    backdrop: item.backdrop,
+    overview: item.overview,
+    rating: item.rating,
+    modifiedDate: item.modifiedDate || "2026",
+    videoUrl: item.videoUrl,
+    videoFileName: item.videoFileName,
+    videoFileSize: item.videoFileSize,
+  }));
 }
 
-// Global search across DhakaFlix sections with snapshot-first fast path and bounded live fallback
+// Global search across DhakaFlix sections with modular search-first fast path and bounded live fallback
 export async function searchDhakaFlixCatalog(query: string, maxResults = 36): Promise<DhakaFlixSearchResult[]> {
   const cleanQ = query.trim().toLowerCase();
   if (!cleanQ) return [];
 
-  // 1. Instant snapshot search (0ms, 35k+ items across all categories)
-  const snapshotResults = searchSnapshotCatalog(cleanQ, maxResults);
+  // 1. Instant modular catalog search (0ms, on-demand category scan)
+  const snapshotResults = await searchSnapshotCatalog(cleanQ, maxResults);
 
-  // If offline or snapshot already has sufficient high-quality matches, return immediately
+  // If offline or modular catalog already has sufficient matches, return immediately
   const isOnline = await checkBdixAvailability();
   if (!isOnline || snapshotResults.length >= maxResults) {
     return snapshotResults;

@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
     ],
   },
   allowedDevOrigins: ["192.168.10.112", "localhost", "127.0.0.1"],
+  outputFileTracingIncludes: {
+    "/api/**/*": ["./public/catalog/**/*"],
+  },
 };
 
 export default nextConfig;

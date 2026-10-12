@@ -214,6 +214,19 @@ export default function Home() {
 
   // 1-Click Native Play in VLC (Android, iOS & Desktop)
   const handlePlayVlc = async (streamUrl: string, title: string) => {
+    if (!streamUrl || !streamUrl.trim()) {
+      setToastMessage({ text: `No direct stream URL available for "${title}"`, type: "error" });
+      setTimeout(() => setToastMessage(null), 3500);
+      return;
+    }
+
+    if (streamUrl.endsWith("/")) {
+      window.open(streamUrl, "_blank");
+      setToastMessage({ text: `Opening directory for "${title}" on BDIX server...`, type: "success" });
+      setTimeout(() => setToastMessage(null), 3500);
+      return;
+    }
+
     // Sanitize stream URL for VLC (RFC 3986 compliance: encode spaces and brackets)
     let validUrl = streamUrl;
     const protoIdx = validUrl.indexOf("://");

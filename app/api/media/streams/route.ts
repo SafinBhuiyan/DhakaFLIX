@@ -22,14 +22,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing title or url parameter" }, { status: 400 });
   }
 
+  // Detect TV series candidate from URL, title, or category
+  const isSeriesCandidate =
+    /tv|series|anime|cartoon|korean|show|drama/i.test(category) ||
+    (url ? /\/TV-WEB-Series\/|\/TV%20Series\/|\/TV Series\/|\/Anime|\/Cartoon|Season/i.test(url) : false) ||
+    (title ? /[\(\[]?(?:TV\s+(?:Mini\s+)?Series|Season|\bS\d+\b)[^\)\]]*[\)\]]?/i.test(title) : false);
+
   try {
     const isOnline = await checkBdixAvailability();
-
-    // 1. If URL, title, or category indicates a TV series, inspect seasons & episodes
-    const isSeriesCandidate =
-      /tv|series|anime|cartoon|korean|show|drama/i.test(category) ||
-      (url ? /\/TV-WEB-Series\/|\/TV%20Series\/|\/TV Series\/|\/Anime|\/Cartoon|Season/i.test(url) : false) ||
-      (title ? /[\(\[]?(?:TV\s+(?:Mini\s+)?Series|Season|\bS\d+\b)[^\)\]]*[\)\]]?/i.test(title) : false);
 
     if (isSeriesCandidate && (url || title)) {
       const seriesDetails = await getShowEpisodes(url || "", title || "", year, category);
@@ -69,24 +69,48 @@ export async function GET(req: NextRequest) {
           { headers: CACHE_HEADERS }
         );
       }
+
+      // If series candidate but no seasons discovered, keep isSeries: true
+      return NextResponse.json(
+        {
+          isSeries: true,
+          totalSeasons: 0,
+          totalEpisodes: 0,
+          seasons: [],
+          streams: [],
+        },
+        { headers: CACHE_HEADERS }
+      );
     }
 
     // 2. If in cloud (Vercel) without BDIX LAN, resolve from snapshot
     if (!isOnline) {
-      const streams = getSnapshotStreams(title || "", year, url);
+      const streams = await getSnapshotStreams(title || "", year, url);
       return NextResponse.json({ isSeries: false, streams }, { headers: CACHE_HEADERS });
     }
 
     // 3. For movies, inspect folder or locate media streams
     let streams = await findDhakaFlixStreams(title || "", year, url);
     if (streams.length === 0) {
-      streams = getSnapshotStreams(title || "", year, url);
+      streams = await getSnapshotStreams(title || "", year, url);
     }
 
     return NextResponse.json({ isSeries: false, streams }, { headers: CACHE_HEADERS });
   } catch (err: any) {
     console.error("Streams API error:", err);
-    const streams = getSnapshotStreams(title || "", year, url);
+    if (isSeriesCandidate) {
+      return NextResponse.json(
+        {
+          isSeries: true,
+          totalSeasons: 0,
+          totalEpisodes: 0,
+          seasons: [],
+          streams: [],
+        },
+        { headers: CACHE_HEADERS }
+      );
+    }
+    const streams = await getSnapshotStreams(title || "", year, url);
     return NextResponse.json({ isSeries: false, streams }, { headers: CACHE_HEADERS });
   }
 }

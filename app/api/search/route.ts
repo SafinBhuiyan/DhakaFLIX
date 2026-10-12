@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchDhakaFlixCatalog, searchSnapshotCatalog, checkBdixAvailability } from "@/lib/dhakaflix";
+import { searchDhakaFlixCatalog, checkBdixAvailability } from "@/lib/dhakaflix";
+import { searchModularCatalog } from "@/lib/catalog-store";
 import { searchTMDb, getPosterUrl, getBackdropUrl } from "@/lib/tmdb";
 
 const CACHE_HEADERS = {
@@ -18,9 +19,9 @@ export async function GET(req: NextRequest) {
   try {
     const isOnline = await checkBdixAvailability();
 
-    // 1. If in cloud (Vercel), search snapshot instantly (0ms latency, zero timeout risk)
+    // 1. If in cloud (Vercel), search modular catalog files instantly on demand
     if (!isOnline) {
-      const items = searchSnapshotCatalog(q, limit);
+      const items = await searchModularCatalog(q, limit);
       return NextResponse.json(
         {
           query: q,
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
     let items = await searchDhakaFlixCatalog(q, limit);
 
     if (items.length === 0) {
-      items = searchSnapshotCatalog(q, limit);
+      items = await searchModularCatalog(q, limit);
     } else {
       // Enrich top 6 items missing artwork with TMDb in parallel
       await Promise.all(
@@ -68,7 +69,7 @@ export async function GET(req: NextRequest) {
       { headers: CACHE_HEADERS }
     );
   } catch {
-    const items = searchSnapshotCatalog(q, limit);
+    const items = await searchModularCatalog(q, limit);
     return NextResponse.json(
       {
         query: q,

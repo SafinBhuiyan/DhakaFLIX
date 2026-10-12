@@ -14,6 +14,7 @@ import {
   Tv,
   ListVideo,
   Play,
+  Folder,
 } from "lucide-react";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 import { DhakaFlixStream, DhakaEpisode, DhakaSeason } from "@/lib/dhakaflix";
@@ -149,6 +150,10 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
           if (firstSeason.episodes.length > 0) {
             setSelectedEpisode(firstSeason.episodes[0]);
           }
+          if (data.streams) setStreams(data.streams);
+        } else if (data.isSeries || isLikelySeries) {
+          setIsSeries(true);
+          setSeasons(data.seasons || []);
           if (data.streams) setStreams(data.streams);
         } else {
           setIsSeries(false);
@@ -360,14 +365,22 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
           <div className="flex items-center gap-2 pt-1 flex-wrap sm:flex-nowrap">
             {/* 1. Play in VLC Button */}
             <button
-              onClick={() => onPlayVlc(primaryStreamUrl, primaryTitle)}
+              onClick={() => {
+                if (isSeries && !activeEpisode) {
+                  if (movie.serverUrl) window.open(movie.serverUrl, "_blank");
+                  return;
+                }
+                onPlayVlc(primaryStreamUrl, primaryTitle);
+              }}
               className="group flex-1 flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-orange-950/40 active:scale-95 transition min-h-[42px] cursor-pointer"
-              title={isSeries ? `Stream S${activeSeasonNumber}:E${activeEpisode?.episodeNumber || 1} directly in VLC` : "Stream directly in VLC (Mobile & Desktop)"}
+              title={isSeries ? (activeEpisode ? `Stream S${activeSeasonNumber}:E${activeEpisode.episodeNumber} directly in VLC` : "Browse Series Directory on BDIX") : "Stream directly in VLC (Mobile & Desktop)"}
             >
               <VlcIcon size={18} fill="#FFFFFF" className="shrink-0 group-hover:scale-105 transition-transform" />
               <span>
-                {isSeries && activeEpisode
-                  ? `Play E${activeEpisode.episodeNumber} in VLC`
+                {isSeries
+                  ? activeEpisode
+                    ? `Play E${activeEpisode.episodeNumber} in VLC`
+                    : "Browse Series Files"
                   : "Play in VLC"}
               </span>
             </button>
@@ -445,14 +458,29 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
             <div className="space-y-3 pt-3 border-t border-white/10">
               {/* Episodes Header + Season Tabs */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                <div className="flex items-center gap-2">
-                  <Tv className="w-4 h-4 text-[#e50914]" />
-                  <h3 className="text-xs sm:text-sm font-bold text-white tracking-wide uppercase">
-                    Episode Collection
-                  </h3>
-                  <span className="text-[10px] font-bold text-neutral-400 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
-                    {currentEpisodes.length} Episodes
-                  </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <Tv className="w-4 h-4 text-[#e50914]" />
+                    <h3 className="text-xs sm:text-sm font-bold text-white tracking-wide uppercase">
+                      Episode Collection
+                    </h3>
+                    <span className="text-[10px] font-bold text-neutral-400 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
+                      {currentEpisodes.length} Episodes
+                    </span>
+                  </div>
+                  {movie.serverUrl && (
+                    <a
+                      href={movie.serverUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-medium text-neutral-300 hover:text-white transition active:scale-95 cursor-pointer ml-auto sm:ml-0"
+                      title="Open folder directly on DhakaFlix BDIX server"
+                    >
+                      <Folder className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Browse Folder</span>
+                      <ExternalLink className="w-3 h-3 text-neutral-400" />
+                    </a>
+                  )}
                 </div>
 
                 {/* Season Selector Tabs (if multiple seasons) */}
@@ -618,6 +646,17 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                               <VlcIcon size={12} fill="#FFFFFF" />
                               <span>Play</span>
                             </button>
+
+                            {/* Download M3U for this episode */}
+                            <a
+                              href={`/api/vlc/playlist?url=${encodeURIComponent(ep.streamUrl)}&title=${encodeURIComponent(`${movie.title} S${activeSeasonNumber}E${ep.episodeNumber} - ${ep.title}`)}`}
+                              download
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition flex items-center justify-center min-w-[28px] min-h-[28px] cursor-pointer"
+                              title={`Download .m3u playlist for Episode ${ep.episodeNumber}`}
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </a>
 
                             {/* Copy Link */}
                             <button

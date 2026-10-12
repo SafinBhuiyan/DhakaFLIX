@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchH5aiDirectory, checkBdixAvailability, findSnapshotItem } from "@/lib/dhakaflix";
+import { fetchH5aiDirectory, checkBdixAvailability } from "@/lib/dhakaflix";
+import { findTvSeriesItem, findCatalogStreamItem } from "@/lib/catalog-store";
 
 const VIDEO_EXTENSIONS = /\.(mkv|mp4|avi|mov|wmv|m4v|webm)$/i;
 
@@ -55,6 +56,33 @@ export async function GET(req: NextRequest) {
             },
           });
         }
+      } else {
+        // Cloud / Vercel: Lookup verified episodes from tvSeries.json
+        const tvItem = await findTvSeriesItem(targetFolder, title);
+        if (tvItem?.seasons) {
+          const matchedSeason =
+            tvItem.seasons.find((s: any) =>
+              targetFolder.toLowerCase().includes(s.folderUrl?.toLowerCase()) ||
+              (s.folderUrl && s.folderUrl.toLowerCase().includes(targetFolder.toLowerCase()))
+            ) || tvItem.seasons[0];
+
+          if (matchedSeason?.episodes?.length > 0) {
+            let m3u = "#EXTM3U\n";
+            for (const ep of matchedSeason.episodes) {
+              m3u += `#EXTINF:-1,${title} - ${ep.title} (${ep.fileName})\n${sanitizeUrl(ep.streamUrl)}\n`;
+            }
+
+            const sanitizedTitle = `${title}_${matchedSeason.seasonName || "Season"}`.replace(/[^a-zA-Z0-9_\-\. ]/g, "_");
+            return new NextResponse(m3u, {
+              status: 200,
+              headers: {
+                "Content-Type": "audio/x-mpegurl; charset=utf-8",
+                "Content-Disposition": `attachment; filename="${encodeURIComponent(sanitizedTitle)}.m3u"`,
+                "Cache-Control": "no-cache",
+              },
+            });
+          }
+        }
       }
     } catch (err) {
       console.error("Error creating directory playlist:", err);
@@ -67,7 +95,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (streamUrl.endsWith("/")) {
-    const match = findSnapshotItem(streamUrl, title);
+    const match = await findCatalogStreamItem(streamUrl, title);
     if (match && match.videoUrl) {
       streamUrl = match.videoUrl;
     }
