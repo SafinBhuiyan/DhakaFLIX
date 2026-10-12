@@ -18,6 +18,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { CATEGORY_GROUPS } from "@/components/site-header";
+import { useScrollLock } from "@/hooks/use-scroll-lock";
 
 interface MobileNavBarProps {
   activeCategory: string;
@@ -42,16 +43,7 @@ export function MobileNavBar({
   }, []);
 
   // Prevent background scroll when sheet is open
-  useEffect(() => {
-    if (sheetOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [sheetOpen]);
+  useScrollLock(sheetOpen);
 
   const handleItemClick = (catId: string) => {
     setSheetOpen(false);
@@ -129,15 +121,15 @@ export function MobileNavBar({
 
       {/* 2. Full Categorized Bottom Drawer / Sheet */}
       {sheetOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex flex-col justify-end">
+        <div className="fixed inset-0 z-50 md:hidden flex flex-col justify-end overscroll-contain">
           {/* Backdrop */}
           <div
             onClick={() => setSheetOpen(false)}
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity animate-in fade-in duration-200 touch-none"
           />
 
           {/* Sheet Modal Container */}
-          <div className="relative z-10 bg-[#161619] border-t border-white/15 rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col animate-in slide-in-from-bottom duration-250">
+          <div className="relative z-10 bg-[#161619] border-t border-white/15 rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col animate-in slide-in-from-bottom duration-250 overscroll-contain">
             {/* Sheet Handle & Header */}
             <div className="p-4 pb-2 border-b border-white/10 shrink-0">
               <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-3" />

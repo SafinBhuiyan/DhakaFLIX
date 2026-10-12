@@ -11,11 +11,15 @@ import {
   HardDrive,
   Loader2,
   Film,
+  Tv,
+  ListVideo,
+  Play,
 } from "lucide-react";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
-import { DhakaFlixStream } from "@/lib/dhakaflix";
+import { DhakaFlixStream, DhakaEpisode, DhakaSeason } from "@/lib/dhakaflix";
 import { MoviePosterPlaceholder } from "@/components/movie-poster-placeholder";
 import { VlcIcon } from "@/components/vlc-icon";
+import { useScrollLock } from "@/hooks/use-scroll-lock";
 
 function YoutubeIcon({ className = "w-4 h-4", ...props }: React.SVGProps<SVGSVGElement>) {
   return (
@@ -32,11 +36,20 @@ interface StreamModalProps {
 }
 
 export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
+  // Prevent background page scrolling while modal is open
+  useScrollLock(Boolean(movie));
+
   const [streams, setStreams] = useState<DhakaFlixStream[]>([]);
   const [loading, setLoading] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [imgError, setImgError] = useState(false);
   const [backdropError, setBackdropError] = useState(false);
+
+  // TV & Web Series Episode Collection State
+  const [isSeries, setIsSeries] = useState(false);
+  const [seasons, setSeasons] = useState<DhakaSeason[]>([]);
+  const [activeSeasonNumber, setActiveSeasonNumber] = useState(1);
+  const [selectedEpisode, setSelectedEpisode] = useState<DhakaEpisode | null>(null);
 
   // YouTube Web Player State
   const [trailerOpen, setTrailerOpen] = useState(false);
@@ -74,41 +87,70 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
     setTrailerOpen(false);
     setTrailerData(null);
 
-    // Instant direct stream resolution (0ms)
-    const directUrl = movie.videoUrl || movie.serverUrl;
-    const hasDirectVideo =
-      Boolean(movie.videoUrl) ||
-      Boolean(movie.serverUrl && /\.(mkv|mp4|avi)$/i.test(movie.serverUrl));
+    const isLikelySeries =
+      Boolean(movie.category && /tv|series|anime|cartoon/i.test(movie.category)) ||
+      Boolean(movie.serverUrl && /\/TV-WEB-Series\/|\/TV%20Series\/|\/TV Series\/|Season/i.test(movie.serverUrl)) ||
+      Boolean(movie.rawName && /\(TV (Mini )?Series|Season/i.test(movie.rawName));
 
-    if (hasDirectVideo && directUrl) {
-      setStreams([
-        {
-          title: movie.title,
-          year: movie.year,
-          quality: movie.quality,
-          fileName: movie.videoFileName || `${movie.title}.mkv`,
-          streamUrl: directUrl,
-          folderUrl: movie.serverUrl,
-          fileSizeBytes: 0,
-          fileSizeFormatted: movie.videoFileSize || "",
-          sourceServer: movie.sourceServer || "Server 14",
-          category: movie.category,
-          modifiedDate: movie.modifiedDate || "2026",
-        },
-      ]);
-      setLoading(false);
-    } else {
-      setStreams([]);
+    if (isLikelySeries) {
       setLoading(true);
+      setStreams([]);
+      setIsSeries(true);
+      setSeasons([]);
+      setSelectedEpisode(null);
+    } else {
+      setIsSeries(false);
+      setSeasons([]);
+      setSelectedEpisode(null);
+
+      // Instant direct stream resolution (0ms) for standalone movies
+      const directUrl = movie.videoUrl || movie.serverUrl;
+      const hasDirectVideo =
+        Boolean(movie.videoUrl) ||
+        Boolean(movie.serverUrl && /\.(mkv|mp4|avi)$/i.test(movie.serverUrl));
+
+      if (hasDirectVideo && directUrl) {
+        setStreams([
+          {
+            title: movie.title,
+            year: movie.year,
+            quality: movie.quality,
+            fileName: movie.videoFileName || `${movie.title}.mkv`,
+            streamUrl: directUrl,
+            folderUrl: movie.serverUrl,
+            fileSizeBytes: 0,
+            fileSizeFormatted: movie.videoFileSize || "",
+            sourceServer: movie.sourceServer || "Server 14",
+            category: movie.category,
+            modifiedDate: movie.modifiedDate || "2026",
+          },
+        ]);
+        setLoading(false);
+      } else {
+        setStreams([]);
+        setLoading(true);
+      }
     }
 
-    // Scan for additional file versions (e.g. alternate audio/qualities)
-    const queryUrl = `/api/media/streams?title=${encodeURIComponent(movie.title)}&year=${movie.year}&url=${encodeURIComponent(movie.serverUrl || "")}`;
+    // Query stream API for live folder contents / seasons & episodes
+    const queryUrl = `/api/media/streams?title=${encodeURIComponent(movie.title)}&year=${movie.year}&url=${encodeURIComponent(movie.serverUrl || "")}&category=${encodeURIComponent(movie.category || "")}`;
     fetch(queryUrl)
       .then((res) => res.json())
       .then((data) => {
-        if (data.streams && data.streams.length > 0) {
-          setStreams(data.streams);
+        if (data.isSeries && data.seasons && data.seasons.length > 0) {
+          setIsSeries(true);
+          setSeasons(data.seasons);
+          const firstSeason = data.seasons[0];
+          setActiveSeasonNumber(firstSeason.seasonNumber);
+          if (firstSeason.episodes.length > 0) {
+            setSelectedEpisode(firstSeason.episodes[0]);
+          }
+          if (data.streams) setStreams(data.streams);
+        } else {
+          setIsSeries(false);
+          if (data.streams && data.streams.length > 0) {
+            setStreams(data.streams);
+          }
         }
       })
       .catch((err) => console.error("Error finding streams:", err))
@@ -147,22 +189,35 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
     }
   };
 
+  // Resolve currently active season & episode
+  const currentSeason =
+    seasons.find((s) => s.seasonNumber === activeSeasonNumber) || seasons[0] || null;
+  const currentEpisodes = currentSeason?.episodes || [];
+  const activeEpisode = selectedEpisode || currentEpisodes[0] || null;
+  const totalEpisodeCount = seasons.reduce((acc, s) => acc + s.episodes.length, 0);
+
   const primaryStream = streams.length > 0 ? streams[0] : null;
-  const primaryStreamUrl = primaryStream?.streamUrl || movie.videoUrl || movie.serverUrl;
-  const fileSize = movie.videoFileSize || primaryStream?.fileSizeFormatted || primaryStream?.fileSize;
-  const fileName = movie.videoFileName || primaryStream?.fileName;
+  const primaryStreamUrl = activeEpisode
+    ? activeEpisode.streamUrl
+    : primaryStream?.streamUrl || movie.videoUrl || movie.serverUrl;
+  const primaryTitle = activeEpisode
+    ? `${movie.title} S${activeSeasonNumber}E${activeEpisode.episodeNumber} - ${activeEpisode.title}`
+    : movie.title;
+  const fileSize = !isSeries
+    ? movie.videoFileSize || primaryStream?.fileSizeFormatted || primaryStream?.fileSize
+    : null;
   const backdropSource = movie.backdrop || movie.poster;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in overscroll-contain"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
     >
       <div
-        className="relative w-full max-w-2xl lg:max-w-3xl overflow-hidden rounded-t-[28px] sm:rounded-2xl bg-[#131316] border-t sm:border border-white/10 shadow-2xl flex flex-col max-h-[88vh] sm:max-h-[90vh]"
+        className="relative w-full max-w-2xl lg:max-w-4xl overflow-hidden rounded-t-[28px] sm:rounded-2xl bg-[#131316] border-t sm:border border-white/10 shadow-2xl flex flex-col max-h-[88vh] sm:max-h-[90vh] overscroll-contain"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Ambient Blurred Backdrop */}
@@ -187,13 +242,13 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
         <button
           onClick={onClose}
           aria-label="Close details"
-          className="absolute top-3 right-3 sm:top-4 sm:right-4 z-30 p-2 rounded-full bg-black/40 hover:bg-black/70 text-neutral-400 hover:text-white border border-white/10 transition shadow-lg active:scale-95 min-w-[34px] min-h-[34px] flex items-center justify-center"
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 z-30 p-2 rounded-full bg-black/40 hover:bg-black/70 text-neutral-400 hover:text-white border border-white/10 transition shadow-lg active:scale-95 min-w-[34px] min-h-[34px] flex items-center justify-center cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>
 
         {/* Modal Scroll Body */}
-        <div className="relative z-10 overflow-y-auto custom-scrollbar flex-1 p-4 sm:p-6 space-y-4 sm:space-y-5">
+        <div className="relative z-10 overflow-y-auto overscroll-contain custom-scrollbar flex-1 p-4 sm:p-6 space-y-4 sm:space-y-5">
           {/* Hero: Poster & Core Metadata */}
           <div className="flex gap-3.5 sm:gap-5 items-start">
             {/* Poster Image */}
@@ -225,67 +280,84 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                 {movie.title}
               </h2>
 
-              {/* Clean Meta Pills */}
+              {/* Unified Clean Meta Row */}
               <div className="flex items-center gap-2 flex-wrap text-xs text-neutral-300">
-                <span className="bg-[#e50914] text-white text-[10px] font-black px-1.5 py-0.5 rounded">
+                <span className="bg-[#e50914] text-white text-[10px] font-black px-1.5 py-0.5 rounded uppercase">
                   {movie.quality}
                 </span>
+
                 <span>{movie.year}</span>
-                <span>•</span>
-                <span className="truncate max-w-[130px] sm:max-w-none text-neutral-400">
-                  {movie.category}
-                </span>
+
+                {movie.category && (
+                  <>
+                    <span className="text-neutral-600">•</span>
+                    <span className="truncate max-w-[130px] sm:max-w-none text-neutral-400">
+                      {movie.category}
+                    </span>
+                  </>
+                )}
+
+                {isSeries && totalEpisodeCount > 0 ? (
+                  <>
+                    <span className="text-neutral-600">•</span>
+                    <span className="bg-purple-600/30 text-purple-300 text-[10px] font-bold px-2 py-0.5 rounded-md border border-purple-500/20">
+                      {seasons.length > 1 ? `${seasons.length} Seasons • ` : ""}{totalEpisodeCount} Episodes
+                    </span>
+                  </>
+                ) : !isSeries && fileSize ? (
+                  <>
+                    <span className="text-neutral-600">•</span>
+                    <span className="font-mono text-neutral-300 text-[11px]">{fileSize}</span>
+                  </>
+                ) : null}
 
                 {movie.rating ? (
                   <>
-                    <span>•</span>
+                    <span className="text-neutral-600">•</span>
                     <span className="text-amber-400 font-semibold flex items-center gap-1">
                       <Star className="w-3 h-3 fill-amber-400" />
                       {movie.rating.toFixed(1)}
                     </span>
                   </>
                 ) : null}
-              </div>
 
-              {/* Server & File Specs Pill */}
-              <div className="flex items-center gap-2 flex-wrap text-[11px] text-neutral-400">
-                <span className="flex items-center gap-1 text-emerald-400 font-medium">
+                <span className="text-neutral-600">•</span>
+                <span className="flex items-center gap-1 text-[11px] text-emerald-400 font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  {movie.sourceServer || "Server 14"}
+                  {movie.sourceServer || "Server 12"}
                 </span>
-                {fileSize && (
-                  <>
-                    <span>•</span>
-                    <span className="font-mono text-neutral-300">{fileSize}</span>
-                  </>
-                )}
-                <span>•</span>
-                <span className="text-neutral-400">1Gbps BDIX</span>
               </div>
-
-              {/* Clean File Name (Single Line) */}
-              {fileName && (
-                <p
-                  className="text-[11px] text-neutral-400 font-mono truncate hidden sm:block"
-                  title={fileName}
-                >
-                  {fileName}
-                </p>
-              )}
             </div>
           </div>
 
           {/* Primary Action Buttons */}
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex items-center gap-2 pt-1 flex-wrap sm:flex-nowrap">
             {/* 1. Play in VLC Button */}
             <button
-              onClick={() => onPlayVlc(primaryStreamUrl, movie.title)}
+              onClick={() => onPlayVlc(primaryStreamUrl, primaryTitle)}
               className="group flex-1 flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-orange-950/40 active:scale-95 transition min-h-[42px] cursor-pointer"
-              title="Stream directly in VLC (Mobile & Desktop)"
+              title={isSeries ? `Stream S${activeSeasonNumber}:E${activeEpisode?.episodeNumber || 1} directly in VLC` : "Stream directly in VLC (Mobile & Desktop)"}
             >
               <VlcIcon size={18} fill="#FFFFFF" className="shrink-0 group-hover:scale-105 transition-transform" />
-              <span>Play in VLC</span>
+              <span>
+                {isSeries && activeEpisode
+                  ? `Play E${activeEpisode.episodeNumber} in VLC`
+                  : "Play in VLC"}
+              </span>
             </button>
+
+            {/* If TV Series: Play Season Playlist button */}
+            {isSeries && currentSeason && (
+              <a
+                href={`/api/vlc/playlist?seasonUrl=${encodeURIComponent(currentSeason.folderUrl)}&title=${encodeURIComponent(`${movie.title} ${currentSeason.seasonName}`)}`}
+                download
+                className="px-3 py-2.5 sm:py-3 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 transition flex items-center justify-center gap-1.5 text-xs font-semibold min-h-[42px] active:scale-95 whitespace-nowrap"
+                title={`Download full ${currentSeason.seasonName} M3U playlist for VLC`}
+              >
+                <ListVideo className="w-4 h-4" />
+                <span className="hidden sm:inline">Season Playlist</span>
+              </a>
+            )}
 
             {/* 2. YouTube Trailer in Web Player Button */}
             <button
@@ -301,28 +373,31 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
               )}
             </button>
 
-            {/* 3. Download .m3u Playlist */}
-            <a
-              href={`/api/vlc/playlist?url=${encodeURIComponent(primaryStreamUrl)}&title=${encodeURIComponent(movie.title)}`}
-              download
-              className="p-2.5 sm:px-3 sm:py-3 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition flex items-center justify-center min-w-[42px] min-h-[42px]"
-              title="Download .m3u playlist file"
-            >
-              <Download className="w-4 h-4" />
-            </a>
+            {/* Movie-only actions: Download .m3u & Copy Link (omitted for TV series to eliminate clutter) */}
+            {!isSeries && (
+              <>
+                <a
+                  href={`/api/vlc/playlist?url=${encodeURIComponent(primaryStreamUrl)}&title=${encodeURIComponent(primaryTitle)}`}
+                  download
+                  className="p-2.5 sm:px-3 sm:py-3 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition flex items-center justify-center min-w-[42px] min-h-[42px]"
+                  title="Download .m3u playlist file"
+                >
+                  <Download className="w-4 h-4" />
+                </a>
 
-            {/* 4. Copy Stream Link */}
-            <button
-              onClick={() => handleCopy(primaryStreamUrl)}
-              className="p-2.5 sm:px-3 sm:py-3 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition flex items-center justify-center min-w-[42px] min-h-[42px]"
-              title="Copy direct stream link"
-            >
-              {copiedUrl === primaryStreamUrl ? (
-                <Check className="w-4 h-4 text-emerald-400" />
-              ) : (
-                <Copy className="w-4 h-4" />
-              )}
-            </button>
+                <button
+                  onClick={() => handleCopy(primaryStreamUrl)}
+                  className="p-2.5 sm:px-3 sm:py-3 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition flex items-center justify-center min-w-[42px] min-h-[42px]"
+                  title="Copy direct stream link"
+                >
+                  {copiedUrl === primaryStreamUrl ? (
+                    <Check className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </button>
+              </>
+            )}
           </div>
 
           {/* Storyline Synopsis */}
@@ -337,8 +412,214 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
             </div>
           )}
 
-          {/* Multiple File Editions (Only shown if more than 1 file exists!) */}
-          {streams.length > 1 && (
+          {/* ============================================================ */}
+          {/* EPISODE COLLECTION SECTION (for TV & Web Series)             */}
+          {/* ============================================================ */}
+          {isSeries && (
+            <div className="space-y-3 pt-3 border-t border-white/10">
+              {/* Episodes Header + Season Tabs */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2">
+                  <Tv className="w-4 h-4 text-[#e50914]" />
+                  <h3 className="text-xs sm:text-sm font-bold text-white tracking-wide uppercase">
+                    Episode Collection
+                  </h3>
+                  <span className="text-[10px] font-bold text-neutral-400 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
+                    {currentEpisodes.length} Episodes
+                  </span>
+                </div>
+
+                {/* Season Selector Tabs (if multiple seasons) */}
+                {seasons.length > 1 && (
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
+                    {seasons.map((s) => {
+                      const isSelected = s.seasonNumber === activeSeasonNumber;
+                      return (
+                        <button
+                          key={s.seasonNumber}
+                          onClick={() => {
+                            setActiveSeasonNumber(s.seasonNumber);
+                            if (s.episodes.length > 0) {
+                              setSelectedEpisode(s.episodes[0]);
+                            }
+                          }}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition active:scale-95 whitespace-nowrap cursor-pointer ${
+                            isSelected
+                              ? "bg-[#e50914] text-white shadow-md shadow-red-950/40"
+                              : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10 border border-white/5"
+                          }`}
+                        >
+                          {s.seasonName} ({s.episodes.length})
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Loading Skeleton */}
+              {loading && (
+                <div className="p-8 text-center text-xs text-neutral-400 space-y-2 bg-[#17171a] rounded-xl border border-white/5">
+                  <Loader2 className="w-5 h-5 animate-spin mx-auto text-[#e50914]" />
+                  <p>Scanning DhakaFlix servers for seasons & episodes...</p>
+                </div>
+              )}
+
+              {/* Empty State */}
+              {!loading && currentEpisodes.length === 0 && (
+                <div className="p-6 text-center text-xs text-neutral-400 space-y-2 bg-[#17171a] rounded-xl border border-white/5">
+                  <p>No episodes discovered in this season directory.</p>
+                  {movie.serverUrl && (
+                    <a
+                      href={movie.serverUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 text-xs transition"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Browse folder on DhakaFlix</span>
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {/* Episode Cards Grid: 2 columns mobile, 3 columns desktop */}
+              {!loading && currentEpisodes.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3 max-h-80 sm:max-h-96 overflow-y-auto custom-scrollbar pr-1">
+                  {currentEpisodes.map((ep) => {
+                    const isPlaying = activeEpisode?.id === ep.id;
+                    const epThumb = ep.still || movie.backdrop || movie.poster;
+
+                    const playCurrentEpisode = () => {
+                      setSelectedEpisode(ep);
+                      onPlayVlc(
+                        ep.streamUrl,
+                        `${movie.title} S${activeSeasonNumber}E${ep.episodeNumber} - ${ep.title}`
+                      );
+                    };
+
+                    return (
+                      <div
+                        key={ep.id}
+                        onClick={playCurrentEpisode}
+                        className={`group relative rounded-xl border overflow-hidden flex flex-col transition cursor-pointer select-none ${
+                          isPlaying
+                            ? "bg-[#1f192b] border-purple-500/70 shadow-lg shadow-purple-950/40 ring-1 ring-purple-500/40"
+                            : "bg-[#161619] hover:bg-[#1c1c22] border-white/5 hover:border-white/15"
+                        }`}
+                      >
+                        {/* 16:9 Thumbnail Header */}
+                        <div className="relative aspect-video w-full overflow-hidden bg-black/60 shrink-0">
+                          {epThumb ? (
+                            <img
+                              src={epThumb}
+                              alt={ep.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-white/5">
+                              <Film className="w-6 h-6 text-neutral-600" />
+                            </div>
+                          )}
+
+                          {/* Gradient shadow */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent pointer-events-none" />
+
+                          {/* Episode Number Pill */}
+                          <div className="absolute top-2 left-2 bg-black/85 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] font-black text-amber-400 font-mono tracking-tight shadow border border-white/10">
+                            EP {ep.episodeNumber}
+                          </div>
+
+                          {/* File Size Badge */}
+                          {ep.fileSize && (
+                            <div className="absolute top-2 right-2 bg-black/85 backdrop-blur-sm px-1.5 py-0.5 rounded text-[9px] font-mono text-neutral-300 shadow border border-white/10">
+                              {ep.fileSize}
+                            </div>
+                          )}
+
+                          {/* Playing / Selected Badge */}
+                          {isPlaying && (
+                            <div className="absolute bottom-1.5 left-2 bg-purple-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                              <span>Playing</span>
+                            </div>
+                          )}
+
+                          {/* Hover Play Overlay */}
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <div className="w-8 h-8 rounded-full bg-orange-600 text-white flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
+                              <Play className="w-4 h-4 fill-white ml-0.5" />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Card Content */}
+                        <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-between space-y-1.5">
+                          <div className="space-y-0.5 min-w-0">
+                            <h4
+                              className="text-xs font-bold text-white group-hover:text-amber-400 transition truncate leading-snug"
+                              title={`${ep.episodeNumber}. ${ep.title}`}
+                            >
+                              {ep.episodeNumber}. {ep.title}
+                            </h4>
+
+                            {ep.overview ? (
+                              <p
+                                className="text-[10px] text-neutral-400 line-clamp-1 leading-snug"
+                                title={ep.overview}
+                              >
+                                {ep.overview}
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-neutral-500 font-medium">
+                                BDIX Fast Stream
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Card Actions Footer */}
+                          <div className="flex items-center gap-1.5 pt-1.5 border-t border-white/5 mt-auto">
+                            {/* Play in VLC */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                playCurrentEpisode();
+                              }}
+                              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-[11px] font-bold shadow-sm shadow-orange-950/30 transition active:scale-95 cursor-pointer"
+                              title={`Play Episode ${ep.episodeNumber} in VLC`}
+                            >
+                              <VlcIcon size={12} fill="#FFFFFF" />
+                              <span>Play</span>
+                            </button>
+
+                            {/* Copy Link */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopy(ep.streamUrl);
+                              }}
+                              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition flex items-center justify-center min-w-[28px] min-h-[28px] cursor-pointer"
+                              title="Copy direct stream link"
+                            >
+                              {copiedUrl === ep.streamUrl ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Multiple File Editions (for Movies only) */}
+          {!isSeries && streams.length > 1 && (
             <div className="space-y-2 pt-2 border-t border-white/10">
               <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
                 <HardDrive className="w-3.5 h-3.5 text-[#e50914]" />
@@ -369,7 +650,7 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
 
                     <button
                       onClick={() => onPlayVlc(stream.streamUrl, movie.title)}
-                      className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-[11px] font-bold transition active:scale-95"
+                      className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-[11px] font-bold transition active:scale-95 cursor-pointer"
                     >
                       <VlcIcon size={12} fill="#FFFFFF" />
                       <span>Play</span>
@@ -380,8 +661,8 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
             </div>
           )}
 
-          {/* Loading indicator if scanning additional versions */}
-          {loading && streams.length === 0 && (
+          {/* Loading indicator if scanning additional versions for movies */}
+          {!isSeries && loading && streams.length === 0 && (
             <div className="p-4 text-center text-xs text-neutral-400 space-y-2 bg-[#17171a] rounded-xl border border-white/5">
               <Loader2 className="w-5 h-5 animate-spin mx-auto text-[#e50914]" />
               <p>Scanning DhakaFlix servers for video streams...</p>
@@ -393,11 +674,11 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
       {/* YouTube Trailer Web Player Overlay */}
       {trailerOpen && trailerData && (
         <div
-          className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-black/90 backdrop-blur-md animate-fade-in"
+          className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-black/90 backdrop-blur-md animate-fade-in overscroll-contain touch-none"
           onClick={() => setTrailerOpen(false)}
         >
           <div
-            className="relative w-full max-w-4xl rounded-2xl bg-[#111114] border border-white/15 shadow-2xl overflow-hidden flex flex-col animate-scale-up"
+            className="relative w-full max-w-4xl rounded-2xl bg-[#111114] border border-white/15 shadow-2xl overflow-hidden flex flex-col animate-scale-up touch-auto overscroll-contain"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Player Top Bar */}
@@ -427,7 +708,7 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                 )}
                 <button
                   onClick={() => setTrailerOpen(false)}
-                  className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition min-w-[32px] min-h-[32px] flex items-center justify-center"
+                  className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition min-w-[32px] min-h-[32px] flex items-center justify-center cursor-pointer"
                   aria-label="Close trailer"
                 >
                   <X className="w-4 h-4" />

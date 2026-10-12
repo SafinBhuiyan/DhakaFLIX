@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findDhakaFlixStreams, getSnapshotStreams, checkBdixAvailability } from "@/lib/dhakaflix";
+import {
+  findDhakaFlixStreams,
+  getSnapshotStreams,
+  checkBdixAvailability,
+  getShowEpisodes,
+} from "@/lib/dhakaflix";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const title = searchParams.get("title");
   const yearStr = searchParams.get("year");
   const url = searchParams.get("url") || undefined;
+  const category = searchParams.get("category") || "";
   const year = yearStr ? parseInt(yearStr, 10) : undefined;
 
   if (!title && !url) {
@@ -15,21 +21,59 @@ export async function GET(req: NextRequest) {
   try {
     const isOnline = await checkBdixAvailability();
 
-    // 1. If in cloud (Vercel), resolve stream from snapshot instantly (0ms)
-    if (!isOnline) {
-      const streams = getSnapshotStreams(title || "", year, url);
-      return NextResponse.json({ streams });
+    // 1. If online and URL or category indicates a TV series, inspect seasons & episodes
+    if (isOnline && url) {
+      const isSeriesCandidate =
+        /tv|series|anime|cartoon/i.test(category) ||
+        /\/TV-WEB-Series\/|\/TV%20Series\/|\/TV Series\/|Season/i.test(url) ||
+        (title && /\(TV (Mini )?Series/i.test(title));
+
+      if (isSeriesCandidate) {
+        const seriesDetails = await getShowEpisodes(url, title || "", year);
+        if (seriesDetails.isSeries && seriesDetails.seasons.length > 0) {
+          const allEpisodesStreams = seriesDetails.seasons.flatMap((s) =>
+            s.episodes.map((ep) => ({
+              title: `${title} - ${s.seasonName} E${ep.episodeNumber}`,
+              year,
+              quality: "1080p",
+              fileName: ep.fileName,
+              streamUrl: ep.streamUrl,
+              folderUrl: s.folderUrl,
+              fileSizeBytes: 0,
+              fileSizeFormatted: ep.fileSize || "",
+              sourceServer: "Server 12",
+              category: "TV & Web Series",
+              modifiedDate: ep.date || "2026",
+            }))
+          );
+
+          return NextResponse.json({
+            isSeries: true,
+            totalSeasons: seriesDetails.totalSeasons,
+            totalEpisodes: seriesDetails.totalEpisodes,
+            seasons: seriesDetails.seasons,
+            streams: allEpisodesStreams,
+          });
+        }
+      }
     }
 
-    // 2. If on local BDIX LAN, inspect folders
-    let streams = title ? await findDhakaFlixStreams(title, year) : [];
+    // 2. If in cloud (Vercel) without BDIX LAN, resolve from snapshot
+    if (!isOnline) {
+      const streams = getSnapshotStreams(title || "", year, url);
+      return NextResponse.json({ isSeries: false, streams });
+    }
+
+    // 3. For movies, inspect folder or locate media streams
+    let streams = await findDhakaFlixStreams(title || "", year, url);
     if (streams.length === 0) {
       streams = getSnapshotStreams(title || "", year, url);
     }
 
-    return NextResponse.json({ streams });
-  } catch {
+    return NextResponse.json({ isSeries: false, streams });
+  } catch (err: any) {
+    console.error("Streams API error:", err);
     const streams = getSnapshotStreams(title || "", year, url);
-    return NextResponse.json({ streams });
+    return NextResponse.json({ isSeries: false, streams });
   }
 }

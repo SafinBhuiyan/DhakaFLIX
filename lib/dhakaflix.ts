@@ -15,6 +15,34 @@ export interface DhakaFlixStream {
   modifiedDate: string;
 }
 
+export interface DhakaEpisode {
+  id: string;
+  episodeNumber: number;
+  seasonNumber: number;
+  title: string;
+  overview?: string;
+  still?: string | null;
+  voteAverage?: number;
+  fileName: string;
+  streamUrl: string;
+  fileSize?: string;
+  date?: string;
+}
+
+export interface DhakaSeason {
+  seasonNumber: number;
+  seasonName: string;
+  folderUrl: string;
+  episodes: DhakaEpisode[];
+}
+
+export interface DhakaSeriesDetails {
+  isSeries: boolean;
+  totalSeasons: number;
+  totalEpisodes: number;
+  seasons: DhakaSeason[];
+}
+
 export interface DhakaFlixMediaItem {
   id: string;
   title: string;
@@ -377,6 +405,202 @@ export async function getFolderStreams(folderUrl: string, title: string, year: n
   return streams;
 }
 
+const showEpisodesCache = new Map<string, { data: DhakaSeriesDetails; savedAt: number }>();
+const SERIES_CACHE_TTL = 15 * 60 * 1000; // 15 mins
+const TMDB_SERIES_API_KEY = process.env.TMDB_API_KEY || "ef87cc03f2c3ac00e1a1f5d3c1df20bf";
+const TMDB_SERIES_BASE = "https://api.themoviedb.org/3";
+
+function parseEpisodeNumber(fileName: string, defaultIdx: number): number {
+  const sEpMatch = fileName.match(/s\d+[\.\-_ ]?e(\d+)/i) || fileName.match(/\b\d+x(\d+)\b/i);
+  if (sEpMatch) return parseInt(sEpMatch[1], 10);
+
+  const epMatch = fileName.match(/(?:ep|episode)[\.\-_ ]?(\d+)/i);
+  if (epMatch) return parseInt(epMatch[1], 10);
+
+  const singleEMatch = fileName.match(/[\.\-_\s]E(\d{1,3})[\.\-_\s]/i);
+  if (singleEMatch) return parseInt(singleEMatch[1], 10);
+
+  const isolatedNum = fileName.match(/[\.\-_\s](\d{1,3})(?:v\d+)?\.(?:mkv|mp4|avi)$/i);
+  if (isolatedNum) return parseInt(isolatedNum[1], 10);
+
+  return defaultIdx;
+}
+
+// Deeply scan a TV series directory to resolve seasons and playable episodes with TMDb details
+export async function getShowEpisodes(folderUrl: string, title: string, year?: number): Promise<DhakaSeriesDetails> {
+  const cacheKey = `${folderUrl}_${title}`;
+  const cached = showEpisodesCache.get(cacheKey);
+  if (cached && Date.now() - cached.savedAt < SERIES_CACHE_TTL) {
+    return cached.data;
+  }
+
+  try {
+    const isOnline = await checkBdixAvailability();
+    if (!isOnline) {
+      return { isSeries: false, totalSeasons: 0, totalEpisodes: 0, seasons: [] };
+    }
+
+    const items = await fetchH5aiDirectory(folderUrl);
+    if (!items || items.length === 0) {
+      return { isSeries: false, totalSeasons: 0, totalEpisodes: 0, seasons: [] };
+    }
+
+    const seasonFolders = items.filter((i) => i.isFolder && /season|s\d+/i.test(i.name));
+    const otherFolders = items.filter((i) => i.isFolder && !/season|s\d+/i.test(i.name));
+    const directVideos = items.filter((i) => !i.isFolder && VIDEO_EXTENSIONS.test(i.name));
+
+    // Query TMDb for rich episode metadata
+    let tmdbShowId: number | null = null;
+    try {
+      const cleanTitle = title.replace(/\(TV (Mini )?Series.*\)/i, "").trim();
+      const tmdbRes = await fetch(
+        `${TMDB_SERIES_BASE}/search/tv?api_key=${TMDB_SERIES_API_KEY}&query=${encodeURIComponent(cleanTitle)}${year ? `&first_air_date_year=${year}` : ""}`,
+        { signal: AbortSignal.timeout(3000) }
+      );
+      if (tmdbRes.ok) {
+        const tmdbData = await tmdbRes.json();
+        const firstShow = (tmdbData.results || [])[0];
+        if (firstShow?.id) {
+          tmdbShowId = firstShow.id;
+        }
+      }
+    } catch {}
+
+    const seasons: DhakaSeason[] = [];
+    const targetFolders =
+      seasonFolders.length > 0
+        ? seasonFolders
+        : directVideos.length === 0 && otherFolders.length > 0
+        ? otherFolders
+        : [];
+
+    if (targetFolders.length > 0) {
+      targetFolders.sort((a, b) => {
+        const numA = (a.name.match(/\d+/) || ["0"])[0];
+        const numB = (b.name.match(/\d+/) || ["0"])[0];
+        return parseInt(numA, 10) - parseInt(numB, 10);
+      });
+
+      for (let sIdx = 0; sIdx < targetFolders.length; sIdx++) {
+        const sFolder = targetFolders[sIdx];
+        const sNumMatch = sFolder.name.match(/\d+/);
+        const sNum = sNumMatch ? parseInt(sNumMatch[0], 10) : sIdx + 1;
+
+        let tmdbSeasonEps: any[] = [];
+        if (tmdbShowId) {
+          try {
+            const sRes = await fetch(
+              `${TMDB_SERIES_BASE}/tv/${tmdbShowId}/season/${sNum}?api_key=${TMDB_SERIES_API_KEY}`,
+              { signal: AbortSignal.timeout(3000) }
+            );
+            if (sRes.ok) {
+              const sData = await sRes.json();
+              tmdbSeasonEps = sData.episodes || [];
+            }
+          } catch {}
+        }
+
+        const files = await fetchH5aiDirectory(sFolder.href);
+        const videoFiles = files.filter((f) => !f.isFolder && VIDEO_EXTENSIONS.test(f.name));
+
+        videoFiles.sort((a, b) => {
+          const epA = parseEpisodeNumber(a.name, 0);
+          const epB = parseEpisodeNumber(b.name, 0);
+          if (epA !== epB) return epA - epB;
+          return a.name.localeCompare(b.name);
+        });
+
+        const episodes: DhakaEpisode[] = videoFiles.map((vf, idx) => {
+          const epNum = parseEpisodeNumber(vf.name, idx + 1);
+          const tmdbEp = tmdbSeasonEps.find((e) => e.episode_number === epNum);
+          return {
+            id: Buffer.from(vf.href).toString("base64url"),
+            episodeNumber: epNum,
+            seasonNumber: sNum,
+            title: tmdbEp?.name || `Episode ${epNum}`,
+            overview: tmdbEp?.overview || "",
+            still: tmdbEp?.still_path ? `https://image.tmdb.org/t/p/w500${tmdbEp.still_path}` : null,
+            voteAverage: tmdbEp?.vote_average,
+            fileName: vf.name,
+            streamUrl: vf.href,
+            fileSize: formatBytes(vf.size),
+            date: vf.date,
+          };
+        });
+
+        if (episodes.length > 0) {
+          seasons.push({
+            seasonNumber: sNum,
+            seasonName: sFolder.name,
+            folderUrl: sFolder.href,
+            episodes,
+          });
+        }
+      }
+    } else if (directVideos.length > 0) {
+      directVideos.sort((a, b) => {
+        const epA = parseEpisodeNumber(a.name, 0);
+        const epB = parseEpisodeNumber(b.name, 0);
+        return epA !== epB ? epA - epB : a.name.localeCompare(b.name);
+      });
+
+      let tmdbSeasonEps: any[] = [];
+      if (tmdbShowId) {
+        try {
+          const sRes = await fetch(
+            `${TMDB_SERIES_BASE}/tv/${tmdbShowId}/season/1?api_key=${TMDB_SERIES_API_KEY}`,
+            { signal: AbortSignal.timeout(3000) }
+          );
+          if (sRes.ok) {
+            const sData = await sRes.json();
+            tmdbSeasonEps = sData.episodes || [];
+          }
+        } catch {}
+      }
+
+      const episodes: DhakaEpisode[] = directVideos.map((vf, idx) => {
+        const epNum = parseEpisodeNumber(vf.name, idx + 1);
+        const tmdbEp = tmdbSeasonEps.find((e) => e.episode_number === epNum);
+        return {
+          id: Buffer.from(vf.href).toString("base64url"),
+          episodeNumber: epNum,
+          seasonNumber: 1,
+          title: tmdbEp?.name || `Episode ${epNum}`,
+          overview: tmdbEp?.overview || "",
+          still: tmdbEp?.still_path ? `https://image.tmdb.org/t/p/w500${tmdbEp.still_path}` : null,
+          voteAverage: tmdbEp?.vote_average,
+          fileName: vf.name,
+          streamUrl: vf.href,
+          fileSize: formatBytes(vf.size),
+          date: vf.date,
+        };
+      });
+
+      seasons.push({
+        seasonNumber: 1,
+        seasonName: "Season 1",
+        folderUrl,
+        episodes,
+      });
+    }
+
+    const result: DhakaSeriesDetails = {
+      isSeries: seasons.length > 0 && seasons.some((s) => s.episodes.length > 0),
+      totalSeasons: seasons.length,
+      totalEpisodes: seasons.reduce((acc, s) => acc + s.episodes.length, 0),
+      seasons,
+    };
+
+    if (result.isSeries) {
+      showEpisodesCache.set(cacheKey, { data: result, savedAt: Date.now() });
+    }
+
+    return result;
+  } catch {
+    return { isSeries: false, totalSeasons: 0, totalEpisodes: 0, seasons: [] };
+  }
+}
+
 // Instant snapshot streams for cloud/Vercel (0ms latency)
 export function getSnapshotStreams(title: string, year?: number, url?: string): DhakaFlixStream[] {
   const cleanTitle = title ? title.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
@@ -422,13 +646,19 @@ export function getSnapshotStreams(title: string, year?: number, url?: string): 
 }
 
 // Find streams across all servers for a title
-export async function findDhakaFlixStreams(title: string, year?: number): Promise<DhakaFlixStream[]> {
+export async function findDhakaFlixStreams(title: string, year?: number, folderUrl?: string): Promise<DhakaFlixStream[]> {
+  // If specific folder URL is already provided, check it directly first
+  if (folderUrl) {
+    const directStreams = await getFolderStreams(folderUrl, title, year || 2026);
+    if (directStreams.length > 0) return directStreams;
+  }
+
   const cleanTitle = title.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (!cleanTitle) return [];
 
   const isOnline = await checkBdixAvailability();
   if (!isOnline) {
-    return getSnapshotStreams(title, year);
+    return getSnapshotStreams(title, year, folderUrl);
   }
 
   const found: DhakaFlixStream[] = [];
@@ -446,7 +676,12 @@ export async function findDhakaFlixStreams(title: string, year?: number): Promis
       for (const f of folders) {
         if (!f.isFolder) continue;
         const normName = f.name.toLowerCase().replace(/[^a-z0-9]/g, "");
-        if (normName.includes(cleanTitle) || cleanTitle.includes(normName)) {
+        const isMatch =
+          normName === cleanTitle ||
+          (normName.includes(cleanTitle) && cleanTitle.length >= 4) ||
+          (cleanTitle.includes(normName) && normName.length >= 6 && normName.length >= cleanTitle.length * 0.7);
+
+        if (isMatch) {
           const { title: parsedTitle, year: parsedYear } = parseFolderTitle(f.name);
           const streams = await getFolderStreams(f.href, parsedTitle, parsedYear);
           found.push(...streams);
@@ -455,7 +690,7 @@ export async function findDhakaFlixStreams(title: string, year?: number): Promis
     } catch {}
   }
 
-  return found.length > 0 ? found : getSnapshotStreams(title, year);
+  return found.length > 0 ? found : getSnapshotStreams(title, year, folderUrl);
 }
 
 export interface DhakaFlixSearchResult {

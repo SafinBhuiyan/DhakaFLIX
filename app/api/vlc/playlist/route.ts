@@ -1,16 +1,72 @@
 import { NextRequest, NextResponse } from "next/server";
 import catalogSnapshot from "@/lib/catalog-snapshot.json";
+import { fetchH5aiDirectory, checkBdixAvailability } from "@/lib/dhakaflix";
+
+const VIDEO_EXTENSIONS = /\.(mkv|mp4|avi|mov|wmv|m4v|webm)$/i;
+
+function sanitizeUrl(urlStr: string): string {
+  const protoIdx = urlStr.indexOf("://");
+  if (protoIdx === -1) return urlStr;
+  const proto = urlStr.substring(0, protoIdx);
+  const rest = urlStr.substring(protoIdx + 3);
+  const slashIdx = rest.indexOf("/");
+  if (slashIdx === -1) return urlStr;
+  const host = rest.substring(0, slashIdx);
+  let path = rest.substring(slashIdx);
+  path = path
+    .replace(/ /g, "%20")
+    .replace(/\[/g, "%5B")
+    .replace(/\]/g, "%5D")
+    .replace(/"/g, "%22");
+  return `${proto}://${host}${path}`;
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   let streamUrl = searchParams.get("url");
   const title = searchParams.get("title") || "DhakaFlix Stream";
+  const seasonUrl = searchParams.get("seasonUrl");
 
+  const targetFolder = seasonUrl || (streamUrl && streamUrl.endsWith("/") ? streamUrl : null);
+
+  // If a directory or season URL is requested, generate a full multi-track playlist
+  if (targetFolder) {
+    try {
+      const isOnline = await checkBdixAvailability();
+      if (isOnline) {
+        const items = await fetchH5aiDirectory(targetFolder);
+        const videoFiles = items.filter((i) => !i.isFolder && VIDEO_EXTENSIONS.test(i.name));
+
+        if (videoFiles.length > 0) {
+          videoFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+          let m3u = "#EXTM3U\n";
+          for (const vf of videoFiles) {
+            const cleanName = vf.name.replace(/\.(mkv|mp4|avi|mov|wmv|m4v|webm)$/i, "");
+            m3u += `#EXTINF:-1,${title} - ${cleanName}\n${sanitizeUrl(vf.href)}\n`;
+          }
+
+          const sanitizedTitle = `${title}_Playlist`.replace(/[^a-zA-Z0-9_\-\. ]/g, "_");
+          return new NextResponse(m3u, {
+            status: 200,
+            headers: {
+              "Content-Type": "audio/x-mpegurl; charset=utf-8",
+              "Content-Disposition": `attachment; filename="${encodeURIComponent(sanitizedTitle)}.m3u"`,
+              "Cache-Control": "no-cache",
+            },
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Error creating directory playlist:", err);
+    }
+  }
+
+  // Single stream playback resolution
   if (!streamUrl) {
     return new NextResponse("Missing stream URL", { status: 400 });
   }
 
-  // If streamUrl is a directory (ends with /), resolve direct videoUrl from snapshot
   if (streamUrl.endsWith("/")) {
     const allSnapshotItems: any[] = Object.values(catalogSnapshot).flatMap(
       (cat: any) => cat.items || []
@@ -23,26 +79,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Ensure RFC 3986 compliance for VLC playlist playback
-  let validStreamUrl = streamUrl || "";
-  const protoIdx = validStreamUrl.indexOf("://");
-  if (protoIdx !== -1) {
-    const proto = validStreamUrl.substring(0, protoIdx);
-    const rest = validStreamUrl.substring(protoIdx + 3);
-    const slashIdx = rest.indexOf("/");
-    if (slashIdx !== -1) {
-      const host = rest.substring(0, slashIdx);
-      let path = rest.substring(slashIdx);
-      path = path
-        .replace(/ /g, "%20")
-        .replace(/\[/g, "%5B")
-        .replace(/\]/g, "%5D")
-        .replace(/"/g, "%22");
-      validStreamUrl = `${proto}://${host}${path}`;
-    }
-  }
-
-  // Generate standard M3U playlist file content
+  const validStreamUrl = sanitizeUrl(streamUrl || "");
   const m3uContent = `#EXTM3U\n#EXTINF:-1,${title}\n${validStreamUrl}\n`;
   const sanitizedTitle = title.replace(/[^a-zA-Z0-9_\-\. ]/g, "_");
 

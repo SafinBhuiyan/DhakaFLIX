@@ -7,6 +7,7 @@ import { HeroSlider } from "@/components/hero-slider";
 import { HomeMediaRail, HomeRailSection } from "@/components/home-media-rail";
 import { MovieGridCard } from "@/components/movie-grid-card";
 import { StreamModal } from "@/components/stream-modal";
+import { BackToTop } from "@/components/back-to-top";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 import {
   Play,
@@ -64,6 +65,13 @@ export default function Home() {
     setHasMore(true);
     setActiveCategory(cat);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    if (query.trim()) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   // Load Data: Either Home Payload or Dedicated Category
@@ -291,7 +299,7 @@ export default function Home() {
       <SiteHeader
         activeCategory={activeCategory}
         onSelectCategory={handleSelectCategory}
-        onSearch={setSearchQuery}
+        onSearch={handleSearch}
         onSelectMovie={setSelectedMovie}
         onPlayVlc={handlePlayVlc}
         onHomeClick={() => handleSelectCategory("home")}
@@ -516,12 +524,15 @@ export default function Home() {
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-neutral-900/95 border border-[#e50914]/50 text-white shadow-2xl backdrop-blur-md"
+          className="fixed bottom-20 right-4 sm:bottom-22 sm:right-8 z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-neutral-900/95 border border-[#e50914]/50 text-white shadow-2xl backdrop-blur-md max-w-[calc(100vw-2rem)]"
         >
           <Play className="w-4 h-4 fill-[#e50914] text-[#e50914] shrink-0" />
           <span className="text-xs font-semibold">{toastMessage.text}</span>
         </div>
       )}
+
+      {/* Floating Back to Top Button with Scroll Progress Indicator */}
+      <BackToTop />
     </div>
   );
 }

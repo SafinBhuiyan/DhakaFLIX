@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Search, X, Play, Loader2, Film, Tv } from "lucide-react";
 import { TMDBMedia, getPosterUrl, getMediaTitle, getMediaYear } from "@/lib/tmdb";
+import { useScrollLock } from "@/hooks/use-scroll-lock";
 
 interface SearchDialogProps {
   isOpen: boolean;
@@ -12,6 +13,9 @@ interface SearchDialogProps {
 }
 
 export function SearchDialog({ isOpen, onClose, onSelectMedia, onPlayVlc }: SearchDialogProps) {
+  // Lock background scroll when search dialog is open
+  useScrollLock(isOpen);
+
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<TMDBMedia[]>([]);
   const [loading, setLoading] = useState(false);
@@ -51,9 +55,9 @@ export function SearchDialog({ isOpen, onClose, onSelectMedia, onPlayVlc }: Sear
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-black/80 backdrop-blur-sm animate-fade-in overscroll-contain">
       <div 
-        className="w-full max-w-xl rounded-2xl bg-[#120e1f] border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[75vh]"
+        className="w-full max-w-xl rounded-2xl bg-[#120e1f] border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[75vh] overscroll-contain"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Input Bar */}

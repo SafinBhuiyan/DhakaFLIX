@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Play, Download, Copy, Check, X, Server, ExternalLink, Loader2, HardDrive, Star } from "lucide-react";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 import { DhakaFlixStream } from "@/lib/dhakaflix";
+import { useScrollLock } from "@/hooks/use-scroll-lock";
 
 interface DhakaStreamModalProps {
   movie: CatalogMovie | null;
@@ -12,6 +13,8 @@ interface DhakaStreamModalProps {
 }
 
 export function DhakaStreamModal({ movie, onClose, onPlayVlc }: DhakaStreamModalProps) {
+  useScrollLock(Boolean(movie));
+
   const [streams, setStreams] = useState<DhakaFlixStream[]>([]);
   const [loading, setLoading] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
@@ -38,9 +41,9 @@ export function DhakaStreamModal({ movie, onClose, onPlayVlc }: DhakaStreamModal
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in overscroll-contain">
       <div 
-        className="relative w-full max-w-2xl overflow-hidden rounded-3xl bg-[#120d20] border border-white/10 shadow-2xl flex flex-col max-h-[90vh]"
+        className="relative w-full max-w-2xl overflow-hidden rounded-3xl bg-[#120d20] border border-white/10 shadow-2xl flex flex-col max-h-[90vh] overscroll-contain"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Backdrop Header */}
