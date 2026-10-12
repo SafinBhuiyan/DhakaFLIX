@@ -42,7 +42,9 @@ export default function Home() {
   const [hasMore, setHasMore] = useState<boolean>(true);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [totalCount, setTotalCount] = useState<number>(0);
+  const pageRef = useRef<number>(1);
   const loadingMoreRef = useRef<boolean>(false);
+  const lastFetchTimeRef = useRef<number>(0);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Global Multi-Server Search State
@@ -61,8 +63,10 @@ export default function Home() {
     if (cat === activeCategory && !searchQuery) return;
     setSearchQuery("");
     setSearchResults([]);
+    pageRef.current = 1;
     setPage(1);
     setHasMore(true);
+    setMovies([]);
     setActiveCategory(cat);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -74,46 +78,66 @@ export default function Home() {
     }
   };
 
-  // Load Data: Either Home Payload or Dedicated Category
-  const loadData = async (cat: string) => {
+  // Load Data with AbortController to prevent race conditions on fast category switching
+  useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
+    pageRef.current = 1;
     setPage(1);
 
-    try {
-      if (cat === "home") {
-        // Fetch curated Home multi-section catalog with spotlight
-        const res = await fetch(`/api/dhakaflix/catalog?category=home`);
-        const data = await res.json();
-        setHomeSpotlight(data.spotlight || []);
-        setHomeSections(data.sections || []);
-        setCategoryLabel("Home");
-        setServerName("All Storage Nodes");
-        setHasMore(false);
-      } else {
-        // Fetch specific category paginated catalog
-        const res = await fetch(`/api/dhakaflix/catalog?category=${cat}&page=1&limit=24`);
-        const data = await res.json();
-        setMovies(data.items || []);
-        setCategoryLabel(data.category || "DhakaFlix Media");
-        setServerName(data.server || "Server 14");
-        setHasMore(Boolean(data.hasMore));
-        setTotalCount(data.total || (data.items?.length ?? 0));
+    const fetchData = async () => {
+      try {
+        if (activeCategory === "home") {
+          const res = await fetch(`/api/dhakaflix/catalog?category=home`, { signal: controller.signal });
+          const data = await res.json();
+          if (!controller.signal.aborted) {
+            setHomeSpotlight(data.spotlight || []);
+            setHomeSections(data.sections || []);
+            setCategoryLabel("Home");
+            setServerName("All Storage Nodes");
+            setHasMore(false);
+          }
+        } else {
+          const res = await fetch(`/api/dhakaflix/catalog?category=${activeCategory}&page=1&limit=24`, { signal: controller.signal });
+          const data = await res.json();
+          if (!controller.signal.aborted) {
+            setMovies(data.items || []);
+            setCategoryLabel(data.category || "DhakaFlix Media");
+            setServerName(data.server || "Server 14");
+            setHasMore(Boolean(data.hasMore) && (data.items?.length ?? 0) > 0);
+            setTotalCount(data.total || (data.items?.length ?? 0));
+          }
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") return;
+        console.error("Failed to load catalog data:", err);
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
-    } catch (err) {
-      console.error("Failed to load catalog data:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  // Load next page for infinite scrolling (Category View only)
+    fetchData();
+
+    return () => {
+      controller.abort();
+    };
+  }, [activeCategory]);
+
+  // Load next page for infinite scrolling (Category View only) with cooldown guard
   const loadMore = useCallback(async () => {
     if (loading || loadingMoreRef.current || !hasMore || isSearching || activeCategory === "home") return;
+
+    const now = Date.now();
+    if (now - lastFetchTimeRef.current < 500) return;
+    lastFetchTimeRef.current = now;
+
     loadingMoreRef.current = true;
     setLoadingMore(true);
 
     try {
-      const nextPage = page + 1;
+      const nextPage = pageRef.current + 1;
       const res = await fetch(`/api/dhakaflix/catalog?category=${activeCategory}&page=${nextPage}&limit=24`);
       const data = await res.json();
       const newItems: CatalogMovie[] = data.items || [];
@@ -124,21 +148,20 @@ export default function Home() {
           const filtered = newItems.filter((m) => !existingIds.has(m.id));
           return [...prev, ...filtered];
         });
+        pageRef.current = nextPage;
         setPage(nextPage);
         setTotalCount(data.total || 0);
+        setHasMore(Boolean(data.hasMore));
+      } else {
+        setHasMore(false);
       }
-      setHasMore(Boolean(data.hasMore));
     } catch (err) {
       console.error("Failed to load more movies:", err);
     } finally {
       loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [loading, hasMore, isSearching, page, activeCategory]);
-
-  useEffect(() => {
-    loadData(activeCategory);
-  }, [activeCategory]);
+  }, [loading, hasMore, isSearching, activeCategory]);
 
   // Set up IntersectionObserver on bottom sentinel (Category View only)
   useEffect(() => {
@@ -151,14 +174,14 @@ export default function Home() {
           loadMore();
         }
       },
-      { rootMargin: "350px" }
+      { rootMargin: "150px" }
     );
 
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [hasMore, loading, loadingMore, isSearching, activeCategory, loadMore]);
 
-  // Global multi-server search effect
+  // Global multi-server search effect with AbortController guard
   useEffect(() => {
     const q = searchQuery.trim();
     if (!q) {
@@ -173,12 +196,18 @@ export default function Home() {
     fetch(`/api/search?q=${encodeURIComponent(q)}&limit=36`, { signal: controller.signal })
       .then((res) => res.json())
       .then((data) => {
-        setSearchResults(data.results || []);
+        if (!controller.signal.aborted) {
+          setSearchResults(data.results || []);
+        }
       })
       .catch((err) => {
         if (err.name !== "AbortError") console.error("Search error:", err);
       })
-      .finally(() => setSearching(false));
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setSearching(false);
+        }
+      });
 
     return () => controller.abort();
   }, [searchQuery]);

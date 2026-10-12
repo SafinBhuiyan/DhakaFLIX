@@ -133,7 +133,7 @@ if not exist "%APP_DIR%\\vlc-handler.js" (
 
 reg add "HKCU\\Software\\Classes\\vlc" /ve /d "URL:VLC Protocol" /f >nul
 reg add "HKCU\\Software\\Classes\\vlc" /v "URL Protocol" /d "" /f >nul
-reg add "HKCU\\Software\\Classes\\vlc\\shell\\open\\command" /ve /d "wscript.exe \\"%APP_DIR%\\vlc-handler.js\\" \\"%%%%1\\"" /f >nul
+reg add "HKCU\\Software\\Classes\\vlc\\shell\\open\\command" /ve /d "wscript.exe \\"%APP_DIR%\\vlc-handler.js\\" \\"%%1\\"" /f >nul
 
 echo ---------------------------------------------------
 echo [SUCCESS] VLC 1-Click Desktop Playback is activated!

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Play, Download, Copy, Check, X, Server, ExternalLink, Loader2, HardDrive, Star } from "lucide-react";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 import { DhakaFlixStream } from "@/lib/dhakaflix";
@@ -19,25 +19,63 @@ export function DhakaStreamModal({ movie, onClose, onPlayVlc }: DhakaStreamModal
   const [loading, setLoading] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
+  // Close modal on Escape key
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    },
+    [onClose]
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
   useEffect(() => {
     if (!movie) return;
+    const controller = new AbortController();
     setLoading(true);
 
-    fetch(`/api/media/streams?title=${encodeURIComponent(movie.title)}&year=${movie.year}`)
+    const queryUrl = `/api/media/streams?title=${encodeURIComponent(movie.title)}&year=${movie.year}&url=${encodeURIComponent(movie.serverUrl || "")}&category=${encodeURIComponent(movie.category || "")}`;
+    fetch(queryUrl, { signal: controller.signal })
       .then((res) => res.json())
       .then((data) => {
-        setStreams(data.streams || []);
+        if (!controller.signal.aborted) {
+          setStreams(data.streams || []);
+        }
       })
-      .catch((err) => console.error("Error finding streams:", err))
-      .finally(() => setLoading(false));
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        console.error("Error finding streams:", err);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
   }, [movie]);
 
   if (!movie) return null;
 
   const handleCopy = (url: string) => {
-    navigator.clipboard.writeText(url);
-    setCopiedUrl(url);
-    setTimeout(() => setCopiedUrl(null), 2000);
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      navigator.clipboard
+        .writeText(url)
+        .then(() => {
+          setCopiedUrl(url);
+          setTimeout(() => setCopiedUrl(null), 2000);
+        })
+        .catch((err) => {
+          console.warn("Failed to copy stream link to clipboard:", err);
+        });
+    }
   };
 
   return (

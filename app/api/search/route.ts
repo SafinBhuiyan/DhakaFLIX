@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { searchDhakaFlixCatalog, searchSnapshotCatalog, checkBdixAvailability } from "@/lib/dhakaflix";
 import { searchTMDb, getPosterUrl, getBackdropUrl } from "@/lib/tmdb";
 
+const CACHE_HEADERS = {
+  "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
+};
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || "";
@@ -17,11 +21,14 @@ export async function GET(req: NextRequest) {
     // 1. If in cloud (Vercel), search snapshot instantly (0ms latency, zero timeout risk)
     if (!isOnline) {
       const items = searchSnapshotCatalog(q, limit);
-      return NextResponse.json({
-        query: q,
-        total: items.length,
-        results: items,
-      });
+      return NextResponse.json(
+        {
+          query: q,
+          total: items.length,
+          results: items,
+        },
+        { headers: CACHE_HEADERS }
+      );
     }
 
     // 2. If on local BDIX LAN, perform multi-server search
@@ -52,17 +59,23 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({
-      query: q,
-      total: items.length,
-      results: items,
-    });
+    return NextResponse.json(
+      {
+        query: q,
+        total: items.length,
+        results: items,
+      },
+      { headers: CACHE_HEADERS }
+    );
   } catch {
     const items = searchSnapshotCatalog(q, limit);
-    return NextResponse.json({
-      query: q,
-      total: items.length,
-      results: items,
-    });
+    return NextResponse.json(
+      {
+        query: q,
+        total: items.length,
+        results: items,
+      },
+      { headers: CACHE_HEADERS }
+    );
   }
 }

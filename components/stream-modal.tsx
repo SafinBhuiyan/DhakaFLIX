@@ -132,11 +132,14 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
       }
     }
 
+    const controller = new AbortController();
+
     // Query stream API for live folder contents / seasons & episodes
     const queryUrl = `/api/media/streams?title=${encodeURIComponent(movie.title)}&year=${movie.year}&url=${encodeURIComponent(movie.serverUrl || "")}&category=${encodeURIComponent(movie.category || "")}`;
-    fetch(queryUrl)
+    fetch(queryUrl, { signal: controller.signal })
       .then((res) => res.json())
       .then((data) => {
+        if (controller.signal.aborted) return;
         if (data.isSeries && data.seasons && data.seasons.length > 0) {
           setIsSeries(true);
           setSeasons(data.seasons);
@@ -153,16 +156,35 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
           }
         }
       })
-      .catch((err) => console.error("Error finding streams:", err))
-      .finally(() => setLoading(false));
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        console.error("Error finding streams:", err);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
   }, [movie]);
 
   if (!movie) return null;
 
   const handleCopy = (url: string) => {
-    navigator.clipboard.writeText(url);
-    setCopiedUrl(url);
-    setTimeout(() => setCopiedUrl(null), 2000);
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      navigator.clipboard
+        .writeText(url)
+        .then(() => {
+          setCopiedUrl(url);
+          setTimeout(() => setCopiedUrl(null), 2000);
+        })
+        .catch((err) => {
+          console.warn("Failed to copy stream link to clipboard:", err);
+        });
+    }
   };
 
   const handleOpenTrailer = async () => {
@@ -174,13 +196,16 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
 
     setTrailerLoading(true);
     try {
+      const cleanTitle = movie.title.replace(/[\(\[]?TV\s+(?:Mini\s+)?Series[^\)\]]*[\)\]]?/i, "").trim();
       const res = await fetch(
-        `/api/media/trailer?title=${encodeURIComponent(movie.title)}&year=${movie.year}`
+        `/api/media/trailer?title=${encodeURIComponent(cleanTitle || movie.title)}&year=${movie.year}`
       );
       const data = await res.json();
       if (data.embedUrl) {
         setTrailerData(data);
         setTrailerOpen(true);
+      } else if (data.youtubeSearchUrl) {
+        window.open(data.youtubeSearchUrl, "_blank", "noopener,noreferrer");
       }
     } catch (err) {
       console.error("Failed to load trailer:", err);
@@ -199,7 +224,7 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
   const primaryStream = streams.length > 0 ? streams[0] : null;
   const primaryStreamUrl = activeEpisode
     ? activeEpisode.streamUrl
-    : primaryStream?.streamUrl || movie.videoUrl || movie.serverUrl;
+    : primaryStream?.streamUrl || movie.videoUrl || (movie.serverUrl && !movie.serverUrl.endsWith("/") ? movie.serverUrl : "");
   const primaryTitle = activeEpisode
     ? `${movie.title} S${activeSeasonNumber}E${activeEpisode.episodeNumber} - ${activeEpisode.title}`
     : movie.title;
@@ -471,7 +496,7 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                   <p>No episodes discovered in this season directory.</p>
                   {movie.serverUrl && (
                     <a
-                      href={movie.serverUrl}
+                      href={movie.serverUrl.endsWith("/") ? movie.serverUrl : movie.serverUrl.substring(0, movie.serverUrl.lastIndexOf("/") + 1)}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 text-xs transition"

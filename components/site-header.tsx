@@ -572,7 +572,11 @@ function SearchSuggestionRow({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onPlayVlc(streamUrl, movie.title);
+              if (movie.videoUrl || (movie.serverUrl && !movie.serverUrl.endsWith("/"))) {
+                onPlayVlc(movie.videoUrl || movie.serverUrl, movie.title);
+              } else if (onSelectMovie) {
+                onSelectMovie(movie);
+              }
             }}
             className="p-2 rounded-lg bg-[#e50914]/20 hover:bg-[#e50914] text-[#e50914] hover:text-white transition"
             title="Play in VLC"

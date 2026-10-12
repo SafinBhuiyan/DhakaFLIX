@@ -53,7 +53,10 @@ export function MovieGridCard({ movie, onSelectMovie }: MovieGridCardProps) {
             loading="lazy"
             onError={(e) => {
               const img = e.currentTarget;
-              const fallback = `${movie.serverUrl}a_AL_.jpg`;
+              const folderUrl = movie.serverUrl.endsWith("/")
+                ? movie.serverUrl
+                : movie.serverUrl.substring(0, movie.serverUrl.lastIndexOf("/") + 1);
+              const fallback = `${folderUrl}a_AL_.jpg`;
               if (!fallbackAttempted && img.src !== fallback) {
                 setFallbackAttempted(true);
                 img.src = fallback;

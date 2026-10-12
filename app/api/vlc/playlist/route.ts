@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import catalogSnapshot from "@/lib/catalog-snapshot.json";
-import { fetchH5aiDirectory, checkBdixAvailability } from "@/lib/dhakaflix";
+import { fetchH5aiDirectory, checkBdixAvailability, findSnapshotItem } from "@/lib/dhakaflix";
 
 const VIDEO_EXTENSIONS = /\.(mkv|mp4|avi|mov|wmv|m4v|webm)$/i;
 
@@ -68,12 +67,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (streamUrl.endsWith("/")) {
-    const allSnapshotItems: any[] = Object.values(catalogSnapshot).flatMap(
-      (cat: any) => cat.items || []
-    );
-    const match = allSnapshotItems.find(
-      (m: any) => m.serverUrl === streamUrl || m.title?.toLowerCase() === title.toLowerCase()
-    );
+    const match = findSnapshotItem(streamUrl, title);
     if (match && match.videoUrl) {
       streamUrl = match.videoUrl;
     }

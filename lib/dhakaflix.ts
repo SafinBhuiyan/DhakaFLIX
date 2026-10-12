@@ -287,46 +287,75 @@ export async function checkBdixAvailability(): Promise<boolean> {
   return isBdixOnline;
 }
 
-export function formatBytes(kbString: string): string {
-  const match = kbString.match(/(\d+)\s*KB/i);
-  if (!match) return kbString || "Unknown size";
-  const kb = parseInt(match[1], 10);
-  if (kb > 1024 * 1024) {
-    return (kb / (1024 * 1024)).toFixed(2) + " GB";
+export function formatBytes(input: string | number): string {
+  if (typeof input === "number") {
+    if (input >= 1024 * 1024 * 1024) return (input / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+    if (input >= 1024 * 1024) return (input / (1024 * 1024)).toFixed(0) + " MB";
+    if (input >= 1024) return (input / 1024).toFixed(0) + " KB";
+    return input + " B";
   }
-  return (kb / 1024).toFixed(0) + " MB";
+  const str = String(input || "").trim();
+  if (!str) return "Unknown size";
+  if (/^\d+$/.test(str)) {
+    const bytes = parseInt(str, 10);
+    return formatBytes(bytes);
+  }
+  const kbMatch = str.match(/([\d\.]+)\s*KB/i);
+  if (kbMatch) {
+    const kb = parseFloat(kbMatch[1]);
+    if (kb >= 1024 * 1024) return (kb / (1024 * 1024)).toFixed(2) + " GB";
+    return (kb / 1024).toFixed(0) + " MB";
+  }
+  return str;
 }
 
 export function parseFolderTitle(folderName: string) {
-  // Extract 4-digit year: 19xx or 20xx
-  const yearMatch = folderName.match(/\(((?:19|20)\d{2})\)/);
-  const year = yearMatch ? parseInt(yearMatch[1], 10) : 2026;
+  // 1. Look for release year in parentheses or brackets: e.g. (2024), [2024]
+  let yearMatch = folderName.match(/[\(\[]((?:19|20)\d{2})[\)\]]/);
+  let yearIndex = yearMatch ? yearMatch.index : -1;
 
-  // Clean title
-  let title = folderName;
-  if (yearMatch && yearMatch.index !== undefined) {
-    title = folderName.substring(0, yearMatch.index).trim();
-  } else {
-    title = folderName.replace(/(1080p|720p|2160p|4k|bluray|webrip|amzn|nf).*/i, "").trim();
+  // 2. Fallback: look for year preceded by delimiter and followed by quality tags or end
+  if (!yearMatch) {
+    const fallbackMatch = folderName.match(/(?:[\s\._\-])((?:19|20)\d{2})(?:[\s\._\-]+(?:1080p|720p|2160p|4k|bluray|web|amzn|nf|atvp|dvd|bdrip|remux)|$)/i);
+    if (fallbackMatch && fallbackMatch.index !== undefined) {
+      yearMatch = fallbackMatch;
+      yearIndex = fallbackMatch.index;
+    }
   }
+
+  const year = yearMatch ? parseInt(yearMatch[1], 10) : undefined;
+
+  let title = folderName;
+  if (yearIndex !== undefined && yearIndex > 0) {
+    title = folderName.substring(0, yearIndex);
+  } else {
+    title = folderName.replace(/(?:[\s\._\-])(?:1080p|720p|2160p|4k|bluray|webrip|web-dl|amzn|nf).*/i, "");
+  }
+
   // Remove TV Series tag
-  title = title.replace(/\(TV (Mini )?Series.*\)/i, "").trim();
+  title = title.replace(/[\(\[]?TV\s+(?:Mini\s+)?Series[^\)\]]*[\)\]]?/i, "").trim();
 
-  // Strip leading numbering: e.g. "001. ", "05. ", "100. " (common in IMDb Top 250, Collections)
-  title = title.replace(/^\d{1,3}[\.\-_\s]+\s*/, "").trim();
+  // Strip leading index numbering only if followed by punctuation (e.g. '001. ', '16 - ')
+  // Preserves legitimate titles like '12 Angry Men', '28 Years Later', '10 Cloverfield Lane', '21 Jump Street'
+  title = title.replace(/^\d{1,3}\s*[\.\-_)]\s+/, "").trim();
 
-  // Clean hyphen separators
-  title = title.replace(/-(Part|Episode|The|Volume)/i, ": $1");
-  title = title.replace(/-/g, " ").replace(/\s+/g, " ").trim();
+  // Clean dots and underscores to spaces
+  title = title.replace(/[\._]/g, " ");
+
+  // Clean subtitle separators: '-The' -> ': The', ' - ' -> ': '
+  title = title.replace(/\s*-(Part|Episode|The|Volume|Chapter)\b/i, ": $1");
+  title = title.replace(/\s+-\s+/g, ": ");
+  title = title.replace(/^\s*-\s*|\s*-\s*$/g, "");
+  title = title.replace(/\s+/g, " ").trim();
 
   // Extract quality
   let quality = "720p";
-  if (/1080p/i.test(folderName)) quality = "1080p";
-  else if (/2160p|4k/i.test(folderName)) quality = "4K UHD";
+  if (/2160p|4k/i.test(folderName)) quality = "4K UHD";
+  else if (/1080p/i.test(folderName)) quality = "1080p";
   if (/Dual\s*Audio/i.test(folderName)) quality += " Dual Audio";
   if (/IMAX/i.test(folderName)) quality += " IMAX";
 
-  return { title: title || folderName, year, quality };
+  return { title: title || folderName, year: year || 2026, quality };
 }
 
 export async function fetchH5aiDirectory(urlStr: string): Promise<{ href: string; name: string; date: string; size: string; isFolder: boolean }[]> {
@@ -355,7 +384,12 @@ export async function fetchH5aiDirectory(urlStr: string): Promise<{ href: string
       .filter((m) => m[2] !== "Parent Directory")
       .map((m) => {
         const href = new URL(m[1], urlStr).href;
-        const name = m[2];
+        const name = m[2]
+          .replace(/&amp;/g, "&")
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">");
         const date = m[3];
         const size = m[4];
         const isFolder = !size && href.endsWith("/");
@@ -382,9 +416,25 @@ export async function getFolderStreams(folderUrl: string, title: string, year: n
       if (/Dual\s*Audio/i.test(item.name) || /Dual\s*Audio/i.test(folderUrl)) quality += " Dual Audio";
       if (/IMAX/i.test(item.name)) quality += " IMAX";
 
-      // Server name
-      const host = new URL(folderUrl).hostname;
-      const sourceServer = host === "172.16.50.14" ? "Server 14" : host === "172.16.50.7" ? "Server 7" : host === "172.16.50.12" ? "Server 12" : host;
+      // Server name with safe URL parsing
+      let host = "";
+      try {
+        host = new URL(folderUrl).hostname;
+      } catch {
+        host = "172.16.50.14";
+      }
+      const sourceServer =
+        host === "172.16.50.14"
+          ? "Server 14"
+          : host === "172.16.50.7"
+          ? "Server 7"
+          : host === "172.16.50.12"
+          ? "Server 12"
+          : host === "172.16.50.10"
+          ? "Server 10"
+          : host === "172.16.50.8"
+          ? "Server 8"
+          : host || "DhakaFlix";
 
       streams.push({
         title,
@@ -420,8 +470,11 @@ function parseEpisodeNumber(fileName: string, defaultIdx: number): number {
   const singleEMatch = fileName.match(/[\.\-_\s]E(\d{1,3})[\.\-_\s]/i);
   if (singleEMatch) return parseInt(singleEMatch[1], 10);
 
-  const isolatedNum = fileName.match(/[\.\-_\s](\d{1,3})(?:v\d+)?\.(?:mkv|mp4|avi)$/i);
+  const isolatedNum = fileName.match(/[\.\-_\s](\d{1,3})(?:v\d+)?\.(?:mkv|mp4|avi|m4v|webm|mov|ts|wmv)$/i);
   if (isolatedNum) return parseInt(isolatedNum[1], 10);
+
+  const bracketedNum = fileName.match(/[\.\-_\s](\d{1,3})(?:v\d+)?\s*(?:\[|\()/i);
+  if (bracketedNum) return parseInt(bracketedNum[1], 10);
 
   return defaultIdx;
 }
@@ -436,13 +489,9 @@ export async function getShowEpisodes(folderUrl: string, title: string, year?: n
 
   try {
     const isOnline = await checkBdixAvailability();
-    if (!isOnline) {
-      return { isSeries: false, totalSeasons: 0, totalEpisodes: 0, seasons: [] };
-    }
-
-    const items = await fetchH5aiDirectory(folderUrl);
-    if (!items || items.length === 0) {
-      return { isSeries: false, totalSeasons: 0, totalEpisodes: 0, seasons: [] };
+    let items: Array<{ href: string; name: string; date: string; size: string; isFolder: boolean }> = [];
+    if (isOnline && folderUrl) {
+      items = await fetchH5aiDirectory(folderUrl);
     }
 
     const seasonFolders = items.filter((i) => i.isFolder && /season|s\d+/i.test(i.name));
@@ -507,7 +556,7 @@ export async function getShowEpisodes(folderUrl: string, title: string, year?: n
           const epA = parseEpisodeNumber(a.name, 0);
           const epB = parseEpisodeNumber(b.name, 0);
           if (epA !== epB) return epA - epB;
-          return a.name.localeCompare(b.name);
+          return a.name.localeCompare(b.name, undefined, { numeric: true });
         });
 
         const episodes: DhakaEpisode[] = videoFiles.map((vf, idx) => {
@@ -541,7 +590,7 @@ export async function getShowEpisodes(folderUrl: string, title: string, year?: n
       directVideos.sort((a, b) => {
         const epA = parseEpisodeNumber(a.name, 0);
         const epB = parseEpisodeNumber(b.name, 0);
-        return epA !== epB ? epA - epB : a.name.localeCompare(b.name);
+        return epA !== epB ? epA - epB : a.name.localeCompare(b.name, undefined, { numeric: true });
       });
 
       let tmdbSeasonEps: any[] = [];
@@ -584,6 +633,68 @@ export async function getShowEpisodes(folderUrl: string, title: string, year?: n
       });
     }
 
+    // If no direct folder streams were discovered (e.g. cloud/Vercel or unindexed storage), resolve seasons from TMDb
+    if (seasons.length === 0 && tmdbShowId) {
+      try {
+        const showRes = await fetch(
+          `${TMDB_SERIES_BASE}/tv/${tmdbShowId}?api_key=${TMDB_SERIES_API_KEY}`,
+          { signal: AbortSignal.timeout(3000) }
+        );
+        if (showRes.ok) {
+          const showData = await showRes.json();
+          const tmdbSeasonsList: Array<{ season_number: number; name: string; episode_count: number }> =
+            (showData.seasons || [])
+              .filter((s: { season_number: number; episode_count: number }) => s.season_number > 0 && s.episode_count > 0)
+              .slice(0, 10);
+
+          for (const sItem of tmdbSeasonsList) {
+            try {
+              const sRes = await fetch(
+                `${TMDB_SERIES_BASE}/tv/${tmdbShowId}/season/${sItem.season_number}?api_key=${TMDB_SERIES_API_KEY}`,
+                { signal: AbortSignal.timeout(3000) }
+              );
+              if (sRes.ok) {
+                const sData = await sRes.json();
+                const sEps: Array<{
+                  episode_number: number;
+                  name?: string;
+                  overview?: string;
+                  still_path?: string | null;
+                  vote_average?: number;
+                  air_date?: string;
+                }> = sData.episodes || [];
+
+                const episodes: DhakaEpisode[] = sEps.map((ep) => ({
+                  id: Buffer.from(`${folderUrl}_S${sItem.season_number}_E${ep.episode_number}`).toString("base64url"),
+                  episodeNumber: ep.episode_number,
+                  seasonNumber: sItem.season_number,
+                  title: ep.name || `Episode ${ep.episode_number}`,
+                  overview: ep.overview || "",
+                  still: ep.still_path ? `https://image.tmdb.org/t/p/w500${ep.still_path}` : null,
+                  voteAverage: ep.vote_average,
+                  fileName: `Episode ${ep.episode_number}.mkv`,
+                  streamUrl: folderUrl
+                    ? `${folderUrl.replace(/\/?$/, "/")}${encodeURIComponent(`Season ${sItem.season_number}`)}/${encodeURIComponent(`Episode ${ep.episode_number}.mkv`)}`
+                    : "",
+                  fileSize: "Direct BDIX Stream",
+                  date: ep.air_date,
+                }));
+
+                if (episodes.length > 0) {
+                  seasons.push({
+                    seasonNumber: sItem.season_number,
+                    seasonName: sItem.name || `Season ${sItem.season_number}`,
+                    folderUrl: folderUrl || "",
+                    episodes,
+                  });
+                }
+              }
+            } catch {}
+          }
+        }
+      } catch {}
+    }
+
     const result: DhakaSeriesDetails = {
       isSeries: seasons.length > 0 && seasons.some((s) => s.episodes.length > 0),
       totalSeasons: seasons.length,
@@ -601,20 +712,112 @@ export async function getShowEpisodes(folderUrl: string, title: string, year?: n
   }
 }
 
-// Instant snapshot streams for cloud/Vercel (0ms latency)
+export interface SnapshotCatalogItem {
+  id?: string;
+  title: string;
+  rawName?: string;
+  year?: number;
+  quality?: string;
+  serverUrl: string;
+  sourceServer?: string;
+  category?: string;
+  poster?: string;
+  backdrop?: string;
+  overview?: string;
+  rating?: number;
+  modifiedDate?: string;
+  videoUrl?: string;
+  videoFileName?: string;
+  videoFileSize?: string;
+}
+
+// Module-level caches for 0ms lookups across the 35,452 item catalog
+let allSnapshotItemsCache: SnapshotCatalogItem[] | null = null;
+const snapshotByUrlCache = new Map<string, SnapshotCatalogItem>();
+const snapshotByCleanTitleCache = new Map<string, SnapshotCatalogItem>();
+
+function normalizeUrlKey(u: string): string {
+  try {
+    return decodeURIComponent(u).toLowerCase().replace(/\/+$/, "");
+  } catch {
+    return u.toLowerCase().replace(/\/+$/, "");
+  }
+}
+
+export function getAllSnapshotItems(): SnapshotCatalogItem[] {
+  if (allSnapshotItemsCache) return allSnapshotItemsCache;
+
+  const items: SnapshotCatalogItem[] = [];
+  const snapshotObj = catalogSnapshot as Record<string, { items?: SnapshotCatalogItem[] }>;
+
+  for (const cat of Object.values(snapshotObj)) {
+    if (Array.isArray(cat?.items)) {
+      for (const item of cat.items) {
+        items.push(item);
+
+        if (item.serverUrl) {
+          snapshotByUrlCache.set(item.serverUrl, item);
+          snapshotByUrlCache.set(normalizeUrlKey(item.serverUrl), item);
+        }
+        if (item.videoUrl) {
+          snapshotByUrlCache.set(item.videoUrl, item);
+          snapshotByUrlCache.set(normalizeUrlKey(item.videoUrl), item);
+        }
+        if (item.id) {
+          snapshotByUrlCache.set(item.id, item);
+        }
+
+        const clean = (item.title || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+        if (clean && !snapshotByCleanTitleCache.has(clean)) {
+          snapshotByCleanTitleCache.set(clean, item);
+        }
+      }
+    }
+  }
+
+  allSnapshotItemsCache = items;
+  return allSnapshotItemsCache;
+}
+
+export function findSnapshotItem(url?: string, title?: string): SnapshotCatalogItem | undefined {
+  getAllSnapshotItems();
+
+  if (url) {
+    const match = snapshotByUrlCache.get(url) || snapshotByUrlCache.get(normalizeUrlKey(url));
+    if (match) return match;
+  }
+
+  if (title) {
+    const clean = title.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (clean) {
+      const match = snapshotByCleanTitleCache.get(clean);
+      if (match) return match;
+    }
+  }
+
+  return undefined;
+}
+
+// Instant snapshot streams for cloud/Vercel (0ms latency, O(1) indexed lookup)
 export function getSnapshotStreams(title: string, year?: number, url?: string): DhakaFlixStream[] {
   const cleanTitle = title ? title.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
 
-  const allSnapshotItems: any[] = Object.values(catalogSnapshot).flatMap(
-    (cat: any) => cat.items || []
-  );
+  let match: SnapshotCatalogItem | undefined;
 
-  let match = url
-    ? allSnapshotItems.find((m: any) => m.videoUrl === url || m.serverUrl === url)
-    : null;
+  // 1. Direct O(1) URL lookup
+  if (url) {
+    match = findSnapshotItem(url);
+  }
 
+  // 2. Direct O(1) exact cleaned title lookup
   if (!match && cleanTitle) {
-    match = allSnapshotItems.find((m: any) => {
+    match = findSnapshotItem(undefined, title);
+  }
+
+  // 3. Fallback: Substring search across pre-indexed array (no flatMap GC overhead)
+  if (!match && cleanTitle) {
+    const allSnapshotItems = getAllSnapshotItems();
+    match = allSnapshotItems.find((m) => {
       const norm = (m.title || m.rawName || "").toLowerCase().replace(/[^a-z0-9]/g, "");
       return norm.includes(cleanTitle) || cleanTitle.includes(norm);
     });
@@ -712,15 +915,12 @@ export interface DhakaFlixSearchResult {
   videoFileSize?: string;
 }
 
-// Fast in-memory search across catalog snapshot (0ms latency, zero network overhead)
+// Fast in-memory search across catalog snapshot (0ms latency, zero network overhead, zero GC churn)
 export function searchSnapshotCatalog(query: string, maxResults = 36): DhakaFlixSearchResult[] {
   const cleanQ = query.trim().toLowerCase();
   if (!cleanQ) return [];
 
-  const allSnapshotItems: any[] = Object.values(catalogSnapshot).flatMap(
-    (cat: any) => cat.items || []
-  );
-
+  const allSnapshotItems = getAllSnapshotItems();
   const seen = new Set<string>();
   const results: DhakaFlixSearchResult[] = [];
 
@@ -740,7 +940,7 @@ export function searchSnapshotCatalog(query: string, maxResults = 36): DhakaFlix
         rawName: item.rawName || item.title,
         year: item.year || 2026,
         quality: item.quality || "1080p",
-        serverUrl: item.videoUrl || item.serverUrl,
+        serverUrl: item.serverUrl,
         sourceServer: item.sourceServer || "Server 14",
         category: item.category || "DhakaFlix Media",
         poster: item.poster || `${item.serverUrl}a_AL_.jpg`,
@@ -759,57 +959,92 @@ export function searchSnapshotCatalog(query: string, maxResults = 36): DhakaFlix
   return results;
 }
 
-// Global search across all major DhakaFlix sections
+// Global search across DhakaFlix sections with snapshot-first fast path and bounded live fallback
 export async function searchDhakaFlixCatalog(query: string, maxResults = 36): Promise<DhakaFlixSearchResult[]> {
   const cleanQ = query.trim().toLowerCase();
   if (!cleanQ) return [];
 
-  // Check if BDIX LAN is actually available (returns false immediately on Vercel)
+  // 1. Instant snapshot search (0ms, 35k+ items across all categories)
+  const snapshotResults = searchSnapshotCatalog(cleanQ, maxResults);
+
+  // If offline or snapshot already has sufficient high-quality matches, return immediately
   const isOnline = await checkBdixAvailability();
-  if (!isOnline) {
-    return searchSnapshotCatalog(cleanQ, maxResults);
+  if (!isOnline || snapshotResults.length >= maxResults) {
+    return snapshotResults;
   }
 
+  // 2. If online and snapshot has few results, search cached category folders (zero network overhead)
   const searchCategories = [
     "movies1080p",
     "hindi",
     "southDubbed",
     "southMovies",
     "movies720p",
-    "tvSeries",
     "animation1080p",
     "kolkata",
   ];
 
-  const results: DhakaFlixSearchResult[] = [];
+  const liveResults: DhakaFlixSearchResult[] = [];
+  const seenUrls = new Set(snapshotResults.map((r) => r.serverUrl));
 
-  await Promise.all(
-    searchCategories.map(async (catKey) => {
-      try {
-        const sec = DHAKA_SECTIONS[catKey];
-        const folders = await getCategoryMovieFolders(catKey);
-        for (const f of folders) {
-          if (!f.isFolder) continue;
-          if (f.name.toLowerCase().includes(cleanQ)) {
-            const { title, year, quality } = parseFolderTitle(f.name);
-            results.push({
-              id: Buffer.from(f.href).toString("base64url"),
-              title,
-              rawName: f.name,
-              year,
-              quality,
-              serverUrl: f.href,
-              sourceServer: sec ? sec.server : "DhakaFlix",
-              category: sec ? sec.label : "DhakaFlix Media",
-              poster: `${f.href}a_AL_.jpg`,
-              modifiedDate: f.date || "2026",
-            });
-            if (results.length >= maxResults * 2) break;
-          }
+  for (const catKey of searchCategories) {
+    const cached = categoryFoldersCache.get(catKey);
+    if (cached) {
+      const sec = DHAKA_SECTIONS[catKey];
+      for (const f of cached.folders) {
+        if (!f.isFolder || seenUrls.has(f.href)) continue;
+        if (f.name.toLowerCase().includes(cleanQ)) {
+          seenUrls.add(f.href);
+          const { title, year, quality } = parseFolderTitle(f.name);
+          liveResults.push({
+            id: Buffer.from(f.href).toString("base64url"),
+            title,
+            rawName: f.name,
+            year,
+            quality,
+            serverUrl: f.href,
+            sourceServer: sec ? sec.server : "DhakaFlix",
+            category: sec ? sec.label : "DhakaFlix Media",
+            poster: `${f.href}a_AL_.jpg`,
+            modifiedDate: f.date || "2026",
+          });
         }
-      } catch {}
-    })
-  );
+      }
+    }
+  }
 
-  return results.length > 0 ? results.slice(0, maxResults) : searchSnapshotCatalog(cleanQ, maxResults);
+  const combined = [...liveResults, ...snapshotResults];
+  if (combined.length >= maxResults) {
+    return combined.slice(0, maxResults);
+  }
+
+  // 3. Only if still under maxResults and cache was cold for trending movies, fetch movies1080p safely
+  if (!categoryFoldersCache.has("movies1080p")) {
+    try {
+      const folders = await getCategoryMovieFolders("movies1080p");
+      const sec = DHAKA_SECTIONS.movies1080p;
+      for (const f of folders) {
+        if (!f.isFolder || seenUrls.has(f.href)) continue;
+        if (f.name.toLowerCase().includes(cleanQ)) {
+          seenUrls.add(f.href);
+          const { title, year, quality } = parseFolderTitle(f.name);
+          combined.push({
+            id: Buffer.from(f.href).toString("base64url"),
+            title,
+            rawName: f.name,
+            year,
+            quality,
+            serverUrl: f.href,
+            sourceServer: sec ? sec.server : "Server 14",
+            category: sec ? sec.label : "DhakaFlix Media",
+            poster: `${f.href}a_AL_.jpg`,
+            modifiedDate: f.date || "2026",
+          });
+          if (combined.length >= maxResults) break;
+        }
+      }
+    } catch {}
+  }
+
+  return combined.slice(0, maxResults);
 }

@@ -117,16 +117,36 @@ export async function getUpcomingReleases(): Promise<TMDBMedia[]> {
   }
 }
 
-// Search across movies and TV shows
+const tmdbSearchCache = new Map<string, { data: TMDBMedia[]; timestamp: number }>();
+const TMDB_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+// Search across movies and TV shows (cached in-memory)
 export async function searchTMDb(query: string): Promise<TMDBMedia[]> {
-  if (!query.trim()) return [];
+  const cleanQ = query.trim().toLowerCase();
+  if (!cleanQ) return [];
+
+  const cached = tmdbSearchCache.get(cleanQ);
+  if (cached && Date.now() - cached.timestamp < TMDB_CACHE_TTL) {
+    return cached.data;
+  }
+
   try {
-    const res = await fetch(`${TMDB_BASE_URL}/search/multi?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`);
+    const res = await fetch(
+      `${TMDB_BASE_URL}/search/multi?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`,
+      { next: { revalidate: 1800 } }
+    );
     if (!res.ok) return [];
     const data = await res.json();
-    return (data.results || [])
+    const results: TMDBMedia[] = (data.results || [])
       .filter((item: any) => item.media_type === "movie" || item.media_type === "tv")
       .map((item: any) => ({ ...item }));
+
+    if (tmdbSearchCache.size > 500) {
+      tmdbSearchCache.clear();
+    }
+    tmdbSearchCache.set(cleanQ, { data: results, timestamp: Date.now() });
+
+    return results;
   } catch {
     return [];
   }

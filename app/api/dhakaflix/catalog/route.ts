@@ -24,6 +24,9 @@ export interface CatalogMovie {
 
 // In-memory cache for TMDb enriched metadata per title+year
 const tmdbEnrichmentCache = new Map<string, { poster?: string; backdrop?: string; overview?: string; rating?: number }>();
+const CACHE_HEADERS = {
+  "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
+};
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -51,7 +54,7 @@ export async function GET(req: NextRequest) {
       const data = snapshot[secDef.key];
       const items: CatalogMovie[] = (data?.items || []).slice(0, 20).map((m: any) => ({
         ...m,
-        serverUrl: m.videoUrl || m.serverUrl,
+        serverUrl: m.serverUrl,
         videoUrl: m.videoUrl,
         videoFileName: m.videoFileName,
         videoFileSize: m.videoFileSize,
@@ -76,19 +79,22 @@ export async function GET(req: NextRequest) {
       .slice(0, 5)
       .map((m: any) => ({
         ...m,
-        serverUrl: m.videoUrl || m.serverUrl,
+        serverUrl: m.serverUrl,
         videoUrl: m.videoUrl,
         videoFileName: m.videoFileName,
         videoFileSize: m.videoFileSize,
       }));
 
-    return NextResponse.json({
-      isHome: true,
-      category: "Home",
-      server: "All Storage Nodes",
-      spotlight,
-      sections,
-    });
+    return NextResponse.json(
+      {
+        isHome: true,
+        category: "Home",
+        server: "All Storage Nodes",
+        spotlight,
+        sections,
+      },
+      { headers: CACHE_HEADERS }
+    );
   }
 
   // Map category to real DhakaFlix section
@@ -105,21 +111,24 @@ export async function GET(req: NextRequest) {
 
     const mappedItems = paginated.map((m: any) => ({
       ...m,
-      serverUrl: m.videoUrl || m.serverUrl,
+      serverUrl: m.serverUrl,
       videoUrl: m.videoUrl,
       videoFileName: m.videoFileName,
       videoFileSize: m.videoFileSize,
     }));
 
-    return NextResponse.json({
-      category: fallback?.category || sec.label,
-      server: fallback?.server || sec.server,
-      page,
-      limit,
-      total,
-      hasMore,
-      items: mappedItems,
-    });
+    return NextResponse.json(
+      {
+        category: fallback?.category || sec.label,
+        server: fallback?.server || sec.server,
+        page,
+        limit,
+        total,
+        hasMore,
+        items: mappedItems,
+      },
+      { headers: CACHE_HEADERS }
+    );
   }
 
   try {
@@ -134,21 +143,24 @@ export async function GET(req: NextRequest) {
 
       const mappedItems = paginated.map((m: any) => ({
         ...m,
-        serverUrl: m.videoUrl || m.serverUrl,
+        serverUrl: m.serverUrl,
         videoUrl: m.videoUrl,
         videoFileName: m.videoFileName,
         videoFileSize: m.videoFileSize,
       }));
 
-      return NextResponse.json({
-        category: fallback?.category || sec.label,
-        server: fallback?.server || sec.server,
-        page,
-        limit,
-        total,
-        hasMore,
-        items: mappedItems,
-      });
+      return NextResponse.json(
+        {
+          category: fallback?.category || sec.label,
+          server: fallback?.server || sec.server,
+          page,
+          limit,
+          total,
+          hasMore,
+          items: mappedItems,
+        },
+        { headers: CACHE_HEADERS }
+      );
     }
 
     const total = movieFolders.length;
@@ -213,15 +225,18 @@ export async function GET(req: NextRequest) {
       })
     );
 
-    return NextResponse.json({
-      category: sec.label,
-      server: sec.server,
-      page,
-      limit,
-      total,
-      hasMore,
-      items,
-    });
+    return NextResponse.json(
+      {
+        category: sec.label,
+        server: sec.server,
+        page,
+        limit,
+        total,
+        hasMore,
+        items,
+      },
+      { headers: CACHE_HEADERS }
+    );
   } catch (err: any) {
     // Cloud fallback (Vercel)
     const fallback = (catalogSnapshot as any)[categoryKey] || (catalogSnapshot as any).movies1080p;
@@ -232,20 +247,23 @@ export async function GET(req: NextRequest) {
 
     const mappedItems = paginated.map((m: any) => ({
       ...m,
-      serverUrl: m.videoUrl || m.serverUrl,
+      serverUrl: m.serverUrl,
       videoUrl: m.videoUrl,
       videoFileName: m.videoFileName,
       videoFileSize: m.videoFileSize,
     }));
 
-    return NextResponse.json({
-      category: fallback?.category || sec.label,
-      server: fallback?.server || sec.server,
-      page,
-      limit,
-      total,
-      hasMore,
-      items: mappedItems,
-    });
+    return NextResponse.json(
+      {
+        category: fallback?.category || sec.label,
+        server: fallback?.server || sec.server,
+        page,
+        limit,
+        total,
+        hasMore,
+        items: mappedItems,
+      },
+      { headers: CACHE_HEADERS }
+    );
   }
 }

@@ -140,7 +140,15 @@ export function HeroSlider({ movie, movies, onPlayVlc, onSelectMovie }: HeroSlid
         <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 sm:gap-3.5 pt-1.5">
           {/* 1-Click Play in VLC */}
           <button
-            onClick={() => onPlayVlc(streamUrl, currentMovie.title)}
+            onClick={() => {
+              if (currentMovie.videoUrl) {
+                onPlayVlc(currentMovie.videoUrl, currentMovie.title);
+              } else if (currentMovie.serverUrl && !currentMovie.serverUrl.endsWith("/")) {
+                onPlayVlc(currentMovie.serverUrl, currentMovie.title);
+              } else {
+                onSelectMovie(currentMovie);
+              }
+            }}
             className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-[#e50914] hover:bg-red-700 text-white font-bold text-xs sm:text-sm shadow-xl shadow-red-950/50 transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white min-h-[42px]"
           >
             <VlcIcon className="w-4 h-4 fill-white" />
