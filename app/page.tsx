@@ -209,7 +209,12 @@ export default function Home() {
     }
 
     // Desktop: Localhost Direct Process or Protocol
-    const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+    const isLocalhost = typeof window !== "undefined" && (
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1" ||
+      window.location.hostname === "[::1]" ||
+      window.location.hostname === "::1"
+    );
 
     if (isLocalhost) {
       setToastMessage({ text: `Launching VLC Media Player for "${title}"...`, type: "success" });

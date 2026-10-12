@@ -1,24 +1,114 @@
 import { NextResponse } from "next/server";
 
+const VLC_HANDLER_JS = `var shell = new ActiveXObject("WScript.Shell");
+var fso = new ActiveXObject("Scripting.FileSystemObject");
+
+function safeDecode(str) {
+  try {
+    return decodeURIComponent(str);
+  } catch (e1) {
+    try {
+      return unescape(str);
+    } catch (e2) {
+      return str;
+    }
+  }
+}
+
+function resolveVlcPath() {
+  var vlc = "";
+  try {
+    vlc = shell.RegRead("HKLM\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\App Paths\\\\vlc.exe\\\\");
+    if (vlc && fso.FileExists(vlc)) return vlc;
+  } catch (e) {}
+  try {
+    vlc = shell.RegRead("HKCU\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\App Paths\\\\vlc.exe\\\\");
+    if (vlc && fso.FileExists(vlc)) return vlc;
+  } catch (e) {}
+
+  var candidates = [
+    "C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe",
+    "C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe"
+  ];
+  try {
+    var localApp = shell.ExpandEnvironmentStrings("%LOCALAPPDATA%");
+    candidates.push(localApp + "\\\\Programs\\\\VLC\\\\vlc.exe");
+  } catch (e) {}
+
+  for (var i = 0; i < candidates.length; i++) {
+    if (fso.FileExists(candidates[i])) {
+      return candidates[i];
+    }
+  }
+  return "";
+}
+
+if (WScript.Arguments.Length > 0) {
+  var raw = WScript.Arguments(0);
+  if (raw) {
+    // 1. Strip surrounding quotes and whitespace
+    var url = raw.replace(/^[\\s"']+|[\\s"']+$/g, "");
+
+    // 2. Strip vlc protocol scheme prefixes
+    url = url.replace(/^vlc:\\/\\//i, "").replace(/^vlc:/i, "");
+
+    // 3. Extract query param if passed as ?url=...
+    var qMatch = url.match(/[?&]url=([^&]+)/i);
+    if (qMatch) {
+      url = qMatch[1];
+    }
+
+    // 4. Safe URL decoding (Chromium percent-encodes URI protocol parameters)
+    url = safeDecode(url);
+
+    // If still contains percent-encoded slashes or double-encoded characters (%2F, %2520, etc.)
+    if (/^https?%2F%2F/i.test(url) || /%2F/i.test(url) || /%3A/i.test(url)) {
+      url = safeDecode(url);
+    }
+
+    // 5. Restore protocol scheme if Chromium stripped the colon (e.g. http// -> http://)
+    url = url.replace(/^http\\/\\//i, "http://");
+    url = url.replace(/^https\\/\\//i, "https://");
+    url = url.replace(/^http\\/([^\\/])/i, "http://$1");
+    url = url.replace(/^https\\/([^\\/])/i, "https://$1");
+
+    // 6. If scheme is missing entirely, prepend http://
+    if (!/^[a-zA-Z][a-zA-Z0-9+\\-.]*:\\/\\//.test(url)) {
+      url = "http://" + url;
+    }
+
+    // 7. Sanitize internal quotes to avoid breaking shell arguments
+    url = url.replace(/"/g, "%22");
+
+    // 8. Find VLC and launch
+    var vlcExe = resolveVlcPath();
+    if (vlcExe) {
+      shell.Run('"' + vlcExe + '" "' + url + '"', 1, false);
+    } else {
+      shell.Popup("VLC Media Player was not found. Please ensure VLC is installed.", 0, "DhakaFlix", 16);
+    }
+  }
+}
+`;
+
 export async function GET() {
+  const b64 = Buffer.from(VLC_HANDLER_JS, "utf-8").toString("base64");
+
   const batScript = `@echo off
 set "APP_DIR=%LOCALAPPDATA%\\DhakaFlix"
 if not exist "%APP_DIR%" mkdir "%APP_DIR%"
-(
-echo var shell = new ActiveXObject("WScript.Shell"^);
-echo var fso = new ActiveXObject("Scripting.FileSystemObject"^);
-echo if (WScript.Arguments.Length ^> 0^) {
-echo   var raw = WScript.Arguments(0^);
-echo   var url = raw.replace(^^/^vlc:\\/\\//i, ""^).replace(^^/^vlc:/i, ""^);
-echo   var vlc = "C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe";
-echo   if (!fso.FileExists(vlc^)^) {
-echo     vlc = "C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe";
-echo   }
-echo   if (fso.FileExists(vlc^)^) {
-echo     shell.Run('"' + vlc + '" "' + url + '"', 1, false^);
-echo   }
-echo }
-) > "%APP_DIR%\\vlc-handler.js"
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[System.IO.File]::WriteAllText('%APP_DIR%\\vlc-handler.js', [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${b64}')), (New-Object System.Text.UTF8Encoding($false)))" 2>nul
+
+if not exist "%APP_DIR%\\vlc-handler.js" (
+  (
+    echo -----BEGIN CERTIFICATE-----
+    echo ${b64}
+    echo -----END CERTIFICATE-----
+  ) > "%TEMP%\\vlc_b64.tmp"
+  certutil -decode "%TEMP%\\vlc_b64.tmp" "%APP_DIR%\\vlc-handler.js" >nul 2>&1
+  if exist "%TEMP%\\vlc_b64.tmp" del "%TEMP%\\vlc_b64.tmp"
+)
 
 reg add "HKCU\\Software\\Classes\\vlc" /ve /d "URL:VLC Protocol" /f >nul
 reg add "HKCU\\Software\\Classes\\vlc" /v "URL Protocol" /d "" /f >nul

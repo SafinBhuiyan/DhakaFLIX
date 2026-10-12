@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { execFile } from "child_process";
 import fs from "fs";
 
+import path from "path";
+
 const VLC_CANDIDATES = [
   "C:\\Program Files\\VideoLAN\\VLC\\vlc.exe",
-  "C:\\Program Files (x86)\\VideoLAN\\VLC\\vlc.exe"
+  "C:\\Program Files (x86)\\VideoLAN\\VLC\\vlc.exe",
+  path.join(process.env.LOCALAPPDATA || "", "Programs", "VLC", "vlc.exe")
 ];
 
 export async function POST(req: NextRequest) {
