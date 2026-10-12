@@ -88,9 +88,10 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
     setTrailerData(null);
 
     const isLikelySeries =
-      Boolean(movie.category && /tv|series|anime|cartoon/i.test(movie.category)) ||
-      Boolean(movie.serverUrl && /\/TV-WEB-Series\/|\/TV%20Series\/|\/TV Series\/|Season/i.test(movie.serverUrl)) ||
-      Boolean(movie.rawName && /\(TV (Mini )?Series|Season/i.test(movie.rawName));
+      Boolean(movie.category && /tv|series|anime|cartoon|korean|show|drama/i.test(movie.category)) ||
+      Boolean(movie.serverUrl && /\/TV-WEB-Series\/|\/TV%20Series\/|\/TV Series\/|\/Anime|\/Cartoon|Season/i.test(movie.serverUrl)) ||
+      Boolean(movie.rawName && /[\(\[]?(?:TV\s+(?:Mini\s+)?Series|Season|\bS\d+\b)[^\)\]]*[\)\]]?/i.test(movie.rawName)) ||
+      Boolean(movie.title && /[\(\[]?(?:TV\s+(?:Mini\s+)?Series|Season|\bS\d+\b)[^\)\]]*[\)\]]?/i.test(movie.title));
 
     if (isLikelySeries) {
       setLoading(true);

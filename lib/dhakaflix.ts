@@ -479,8 +479,20 @@ function parseEpisodeNumber(fileName: string, defaultIdx: number): number {
   return defaultIdx;
 }
 
+function isLikelySeries(folderUrl?: string, title?: string, category?: string): boolean {
+  if (category && /tv|series|anime|cartoon|korean|show|drama/i.test(category)) return true;
+  if (folderUrl && /\/TV-WEB-Series\/|\/TV%20Series\/|\/TV Series\/|\/Anime|\/Cartoon|Season/i.test(folderUrl)) return true;
+  if (title && /[\(\[]?(?:TV\s+(?:Mini\s+)?Series|Season|\bS\d+\b)[^\)\]]*[\)\]]?/i.test(title)) return true;
+  return false;
+}
+
 // Deeply scan a TV series directory to resolve seasons and playable episodes with TMDb details
-export async function getShowEpisodes(folderUrl: string, title: string, year?: number): Promise<DhakaSeriesDetails> {
+export async function getShowEpisodes(
+  folderUrl: string,
+  title: string,
+  year?: number,
+  category?: string
+): Promise<DhakaSeriesDetails> {
   const cacheKey = `${folderUrl}_${title}`;
   const cached = showEpisodesCache.get(cacheKey);
   if (cached && Date.now() - cached.savedAt < SERIES_CACHE_TTL) {
@@ -501,17 +513,86 @@ export async function getShowEpisodes(folderUrl: string, title: string, year?: n
     // Query TMDb for rich episode metadata
     let tmdbShowId: number | null = null;
     try {
-      const cleanTitle = title.replace(/\(TV (Mini )?Series.*\)/i, "").trim();
-      const tmdbRes = await fetch(
-        `${TMDB_SERIES_BASE}/search/tv?api_key=${TMDB_SERIES_API_KEY}&query=${encodeURIComponent(cleanTitle)}${year ? `&first_air_date_year=${year}` : ""}`,
-        { signal: AbortSignal.timeout(3000) }
-      );
-      if (tmdbRes.ok) {
-        const tmdbData = await tmdbRes.json();
-        const firstShow = (tmdbData.results || [])[0];
-        if (firstShow?.id) {
-          tmdbShowId = firstShow.id;
+      const cleanTitle = title.replace(/[\(\[]?TV\s+(?:Mini\s+)?Series[^\)\]]*[\)\]]?/i, "").trim();
+
+      // 1. Try search with year if provided
+      if (year) {
+        try {
+          const tmdbRes = await fetch(
+            `${TMDB_SERIES_BASE}/search/tv?api_key=${TMDB_SERIES_API_KEY}&query=${encodeURIComponent(cleanTitle)}&first_air_date_year=${year}`,
+            { signal: AbortSignal.timeout(4000) }
+          );
+          if (tmdbRes.ok) {
+            const tmdbData = await tmdbRes.json();
+            const firstShow = (tmdbData.results || [])[0];
+            if (firstShow?.id) {
+              tmdbShowId = firstShow.id;
+            }
+          }
+        } catch {}
+      }
+
+      // 2. Fallback: Search without year constraint (essential when catalog year differs from TMDb first_air_date)
+      if (!tmdbShowId) {
+        try {
+          const tmdbRes = await fetch(
+            `${TMDB_SERIES_BASE}/search/tv?api_key=${TMDB_SERIES_API_KEY}&query=${encodeURIComponent(cleanTitle)}`,
+            { signal: AbortSignal.timeout(4000) }
+          );
+          if (tmdbRes.ok) {
+            const tmdbData = await tmdbRes.json();
+            const firstShow = (tmdbData.results || [])[0];
+            if (firstShow?.id) {
+              tmdbShowId = firstShow.id;
+            }
+          }
+        } catch {}
+      }
+
+      // 3. Fallback: If cleanTitle has colon or dash subtitle, search with main title prefix
+      if (!tmdbShowId && (cleanTitle.includes(":") || cleanTitle.includes("-"))) {
+        const baseTitle = cleanTitle.split(/[:\-]/)[0].trim();
+        if (baseTitle && baseTitle.length >= 3) {
+          try {
+            const tmdbRes = await fetch(
+              `${TMDB_SERIES_BASE}/search/tv?api_key=${TMDB_SERIES_API_KEY}&query=${encodeURIComponent(baseTitle)}`,
+              { signal: AbortSignal.timeout(4000) }
+            );
+            if (tmdbRes.ok) {
+              const tmdbData = await tmdbRes.json();
+              const firstShow = (tmdbData.results || [])[0];
+              if (firstShow?.id) {
+                tmdbShowId = firstShow.id;
+              }
+            }
+          } catch {}
         }
+      }
+
+      // 4. Fallback: Search with decoded folder name if folderUrl is available
+      if (!tmdbShowId && folderUrl) {
+        try {
+          const pathParts = folderUrl.split("/").filter(Boolean);
+          const rawFolder = decodeURIComponent(pathParts[pathParts.length - 1] || "");
+          const folderClean = rawFolder
+            .replace(/[\(\[]?TV\s+(?:Mini\s+)?Series[^\)\]]*[\)\]]?/i, "")
+            .replace(/\b(1080p|720p|2160p|4k|Multi\s*Audio|Dual\s*Audio)\b/gi, "")
+            .replace(/\s+/g, " ")
+            .trim();
+          if (folderClean && folderClean !== cleanTitle && folderClean.length >= 3) {
+            const tmdbRes = await fetch(
+              `${TMDB_SERIES_BASE}/search/tv?api_key=${TMDB_SERIES_API_KEY}&query=${encodeURIComponent(folderClean)}`,
+              { signal: AbortSignal.timeout(4000) }
+            );
+            if (tmdbRes.ok) {
+              const tmdbData = await tmdbRes.json();
+              const firstShow = (tmdbData.results || [])[0];
+              if (firstShow?.id) {
+                tmdbShowId = firstShow.id;
+              }
+            }
+          }
+        } catch {}
       }
     } catch {}
 
@@ -638,7 +719,7 @@ export async function getShowEpisodes(folderUrl: string, title: string, year?: n
       try {
         const showRes = await fetch(
           `${TMDB_SERIES_BASE}/tv/${tmdbShowId}?api_key=${TMDB_SERIES_API_KEY}`,
-          { signal: AbortSignal.timeout(3000) }
+          { signal: AbortSignal.timeout(4000) }
         );
         if (showRes.ok) {
           const showData = await showRes.json();
@@ -647,52 +728,96 @@ export async function getShowEpisodes(folderUrl: string, title: string, year?: n
               .filter((s: { season_number: number; episode_count: number }) => s.season_number > 0 && s.episode_count > 0)
               .slice(0, 10);
 
-          for (const sItem of tmdbSeasonsList) {
+          const seasonPromises = tmdbSeasonsList.map(async (sItem) => {
             try {
               const sRes = await fetch(
                 `${TMDB_SERIES_BASE}/tv/${tmdbShowId}/season/${sItem.season_number}?api_key=${TMDB_SERIES_API_KEY}`,
-                { signal: AbortSignal.timeout(3000) }
+                { signal: AbortSignal.timeout(4000) }
               );
+              let sEps: Array<{
+                episode_number: number;
+                name?: string;
+                overview?: string;
+                still_path?: string | null;
+                vote_average?: number;
+                air_date?: string;
+              }> = [];
+
               if (sRes.ok) {
                 const sData = await sRes.json();
-                const sEps: Array<{
-                  episode_number: number;
-                  name?: string;
-                  overview?: string;
-                  still_path?: string | null;
-                  vote_average?: number;
-                  air_date?: string;
-                }> = sData.episodes || [];
+                sEps = sData.episodes || [];
+              }
 
-                const episodes: DhakaEpisode[] = sEps.map((ep) => ({
-                  id: Buffer.from(`${folderUrl}_S${sItem.season_number}_E${ep.episode_number}`).toString("base64url"),
-                  episodeNumber: ep.episode_number,
-                  seasonNumber: sItem.season_number,
-                  title: ep.name || `Episode ${ep.episode_number}`,
-                  overview: ep.overview || "",
-                  still: ep.still_path ? `https://image.tmdb.org/t/p/w500${ep.still_path}` : null,
-                  voteAverage: ep.vote_average,
-                  fileName: `Episode ${ep.episode_number}.mkv`,
-                  streamUrl: folderUrl
-                    ? `${folderUrl.replace(/\/?$/, "/")}${encodeURIComponent(`Season ${sItem.season_number}`)}/${encodeURIComponent(`Episode ${ep.episode_number}.mkv`)}`
-                    : "",
-                  fileSize: "Direct BDIX Stream",
-                  date: ep.air_date,
+              // Fallback to synthetic episode list if season endpoint is empty
+              if (sEps.length === 0 && sItem.episode_count > 0) {
+                sEps = Array.from({ length: sItem.episode_count }, (_, i) => ({
+                  episode_number: i + 1,
+                  name: `Episode ${i + 1}`,
                 }));
+              }
 
-                if (episodes.length > 0) {
-                  seasons.push({
-                    seasonNumber: sItem.season_number,
-                    seasonName: sItem.name || `Season ${sItem.season_number}`,
-                    folderUrl: folderUrl || "",
-                    episodes,
-                  });
-                }
+              const episodes: DhakaEpisode[] = sEps.map((ep) => ({
+                id: Buffer.from(`${folderUrl}_S${sItem.season_number}_E${ep.episode_number}`).toString("base64url"),
+                episodeNumber: ep.episode_number,
+                seasonNumber: sItem.season_number,
+                title: ep.name || `Episode ${ep.episode_number}`,
+                overview: ep.overview || "",
+                still: ep.still_path ? `https://image.tmdb.org/t/p/w500${ep.still_path}` : null,
+                voteAverage: ep.vote_average,
+                fileName: `Episode ${ep.episode_number}.mkv`,
+                streamUrl: folderUrl
+                  ? `${folderUrl.replace(/\/?$/, "/")}${encodeURIComponent(`Season ${sItem.season_number}`)}/${encodeURIComponent(`Episode ${ep.episode_number}.mkv`)}`
+                  : "",
+                fileSize: "Direct BDIX Stream",
+                date: ep.air_date,
+              }));
+
+              if (episodes.length > 0) {
+                return {
+                  seasonNumber: sItem.season_number,
+                  seasonName: sItem.name || `Season ${sItem.season_number}`,
+                  folderUrl: folderUrl || "",
+                  episodes,
+                };
               }
             } catch {}
+            return null;
+          });
+
+          const resolvedSeasons = await Promise.all(seasonPromises);
+          for (const s of resolvedSeasons) {
+            if (s) seasons.push(s);
           }
+          seasons.sort((a, b) => a.seasonNumber - b.seasonNumber);
         }
       } catch {}
+    }
+
+    // Fallback: If it's a TV series candidate but no episodes were returned (e.g. unindexed on TMDb or TMDb error)
+    if (seasons.length === 0 && isLikelySeries(folderUrl, title, category)) {
+      const defaultEpisodes: DhakaEpisode[] = Array.from({ length: 8 }, (_, idx) => {
+        const epNum = idx + 1;
+        return {
+          id: Buffer.from(`${folderUrl}_S1_E${epNum}`).toString("base64url"),
+          episodeNumber: epNum,
+          seasonNumber: 1,
+          title: `Episode ${epNum}`,
+          overview: "",
+          still: null,
+          fileName: `Episode ${epNum}.mkv`,
+          streamUrl: folderUrl
+            ? `${folderUrl.replace(/\/?$/, "/")}${encodeURIComponent("Season 1")}/${encodeURIComponent(`Episode ${epNum}.mkv`)}`
+            : "",
+          fileSize: "Direct BDIX Stream",
+        };
+      });
+
+      seasons.push({
+        seasonNumber: 1,
+        seasonName: "Season 1",
+        folderUrl: folderUrl || "",
+        episodes: defaultEpisodes,
+      });
     }
 
     const result: DhakaSeriesDetails = {

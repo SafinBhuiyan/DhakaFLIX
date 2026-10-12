@@ -27,13 +27,21 @@ export async function GET(req: NextRequest) {
 
     // 1. If URL, title, or category indicates a TV series, inspect seasons & episodes
     const isSeriesCandidate =
-      /tv|series|anime|cartoon/i.test(category) ||
-      (url ? /\/TV-WEB-Series\/|\/TV%20Series\/|\/TV Series\/|Season/i.test(url) : false) ||
-      (title ? /\(TV (Mini )?Series/i.test(title) : false);
+      /tv|series|anime|cartoon|korean|show|drama/i.test(category) ||
+      (url ? /\/TV-WEB-Series\/|\/TV%20Series\/|\/TV Series\/|\/Anime|\/Cartoon|Season/i.test(url) : false) ||
+      (title ? /[\(\[]?(?:TV\s+(?:Mini\s+)?Series|Season|\bS\d+\b)[^\)\]]*[\)\]]?/i.test(title) : false);
 
     if (isSeriesCandidate && (url || title)) {
-      const seriesDetails = await getShowEpisodes(url || "", title || "", year);
+      const seriesDetails = await getShowEpisodes(url || "", title || "", year, category);
       if (seriesDetails.isSeries && seriesDetails.seasons.length > 0) {
+        let sourceServer = "Server 12";
+        if (url) {
+          if (url.includes("172.16.50.14") || url.includes("DHAKA-FLIX-14")) sourceServer = "Server 14";
+          else if (url.includes("172.16.50.10") || url.includes("DHAKA-FLIX-10")) sourceServer = "Server 10";
+          else if (url.includes("172.16.50.7") || url.includes("DHAKA-FLIX-7")) sourceServer = "Server 7";
+          else if (url.includes("172.16.50.8") || url.includes("DHAKA-FLIX-8")) sourceServer = "Server 8";
+        }
+
         const allEpisodesStreams = seriesDetails.seasons.flatMap((s) =>
           s.episodes.map((ep) => ({
             title: `${title} - ${s.seasonName} E${ep.episodeNumber}`,
@@ -44,8 +52,8 @@ export async function GET(req: NextRequest) {
             folderUrl: s.folderUrl,
             fileSizeBytes: 0,
             fileSizeFormatted: ep.fileSize || "",
-            sourceServer: "Server 12",
-            category: "TV & Web Series",
+            sourceServer,
+            category: category || "TV & Web Series",
             modifiedDate: ep.date || "2026",
           }))
         );
