@@ -1,0 +1,29 @@
+name: Daily Catalog Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Runs at 22:00 UTC (4:00 AM BST Bangladesh Time) every day
+    - cron: '0 22 * * *'
+
+jobs:
+  sync:
+    # Requires a runner connected to a Bangladesh BDIX network
+    runs-on: self-hosted
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Incremental Sync & Push
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: npm run sync:daily

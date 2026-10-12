@@ -10,7 +10,10 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "build:snapshot": "tsx scripts/build-snapshot.ts"
+    "build:snapshot": "tsx scripts/build-snapshot.ts",
+    "sync:catalog": "tsx scripts/sync-catalog.ts",
+    "sync:daily": "tsx scripts/sync-catalog.ts --push",
+    "sync:daemon": "node scripts/sync-daemon.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
