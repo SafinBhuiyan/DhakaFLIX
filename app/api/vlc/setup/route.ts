@@ -58,7 +58,7 @@ if (WScript.Arguments.Length > 0) {
       url = qMatch[1];
     }
 
-    // 4. Safe URL decoding (Chromium percent-encodes URI protocol parameters)
+    // 4. Safe URL decoding for Chromium percent-encoded protocol params
     url = safeDecode(url);
 
     // If still contains percent-encoded slashes or double-encoded characters (%2F, %2520, etc.)
@@ -77,8 +77,29 @@ if (WScript.Arguments.Length > 0) {
       url = "http://" + url;
     }
 
-    // 7. Sanitize internal quotes to avoid breaking shell arguments
-    url = url.replace(/"/g, "%22");
+    // 7. RFC 3986 Path Sanitation for VLC:
+    // VLC's HTTP access module fails with "http error: invalid URL" if path contains raw spaces or brackets []
+    var protoIdx = url.indexOf("://");
+    var proto = url.substring(0, protoIdx);
+    var rest = url.substring(protoIdx + 3);
+    var slashIdx = rest.indexOf("/");
+    var host = slashIdx !== -1 ? rest.substring(0, slashIdx) : rest;
+    var path = slashIdx !== -1 ? rest.substring(slashIdx) : "/";
+
+    path = path.replace(/ /g, "%20");
+    path = path.replace(/\\[/g, "%5B");
+    path = path.replace(/\\]/g, "%5D");
+    path = path.replace(/"/g, "%22");
+    path = path.replace(/</g, "%3C");
+    path = path.replace(/>/g, "%3E");
+    path = path.replace(/\\\\/g, "%5C");
+    path = path.replace(/\\^/g, "%5E");
+    path = path.replace(/\\x60/g, "%60");
+    path = path.replace(/\\{/g, "%7B");
+    path = path.replace(/\\|/g, "%7C");
+    path = path.replace(/\\}/g, "%7D");
+
+    url = proto + "://" + host + path;
 
     // 8. Find VLC and launch
     var vlcExe = resolveVlcPath();

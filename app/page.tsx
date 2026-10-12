@@ -177,6 +177,25 @@ export default function Home() {
 
   // 1-Click Native Play in VLC (Android, iOS & Desktop)
   const handlePlayVlc = async (streamUrl: string, title: string) => {
+    // Sanitize stream URL for VLC (RFC 3986 compliance: encode spaces and brackets)
+    let validUrl = streamUrl;
+    const protoIdx = validUrl.indexOf("://");
+    if (protoIdx !== -1) {
+      const proto = validUrl.substring(0, protoIdx);
+      const rest = validUrl.substring(protoIdx + 3);
+      const slashIdx = rest.indexOf("/");
+      if (slashIdx !== -1) {
+        const host = rest.substring(0, slashIdx);
+        let path = rest.substring(slashIdx);
+        path = path
+          .replace(/ /g, "%20")
+          .replace(/\[/g, "%5B")
+          .replace(/\]/g, "%5D")
+          .replace(/"/g, "%22");
+        validUrl = `${proto}://${host}${path}`;
+      }
+    }
+
     const isMobile = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
 
@@ -184,17 +203,17 @@ export default function Home() {
       setToastMessage({ text: `Opening "${title}" in VLC Mobile...`, type: "success" });
 
       if (isAndroid) {
-        const cleanUrl = streamUrl.replace(/^https?:\/\//i, "");
-        const scheme = streamUrl.startsWith("https") ? "https" : "http";
+        const cleanUrl = validUrl.replace(/^https?:\/\//i, "");
+        const scheme = validUrl.startsWith("https") ? "https" : "http";
         const androidIntent = `intent://${cleanUrl}#Intent;package=org.videolan.vlc;type=video/*;scheme=${scheme};end`;
 
         try {
           window.location.href = androidIntent;
         } catch {
-          window.location.href = `vlc://${streamUrl}`;
+          window.location.href = `vlc://${validUrl}`;
         }
       } else {
-        window.location.href = `vlc://${streamUrl}`;
+        window.location.href = `vlc://${validUrl}`;
       }
 
       setTimeout(() => {
@@ -222,7 +241,7 @@ export default function Home() {
         const res = await fetch("/api/vlc/play", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ streamUrl }),
+          body: JSON.stringify({ streamUrl: validUrl }),
         });
         const data = await res.json();
         if (data.ok) {
@@ -237,13 +256,13 @@ export default function Home() {
     setToastMessage({ text: `Launching "${title}" in VLC Media Player...`, type: "success" });
 
     try {
-      window.location.href = `vlc://${streamUrl}`;
+      window.location.href = `vlc://${validUrl}`;
       setTimeout(() => {
         setToastMessage({ text: `Playing "${title}" in VLC!`, type: "success" });
       }, 1500);
       setTimeout(() => setToastMessage(null), 4500);
     } catch {
-      const playlistUrl = `/api/vlc/playlist?url=${encodeURIComponent(streamUrl)}&title=${encodeURIComponent(title)}`;
+      const playlistUrl = `/api/vlc/playlist?url=${encodeURIComponent(validUrl)}&title=${encodeURIComponent(title)}`;
       const link = document.createElement("a");
       link.href = playlistUrl;
       link.download = `${title.replace(/[^a-zA-Z0-9_\-\. ]/g, "_")}.m3u`;

@@ -23,8 +23,27 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Ensure RFC 3986 compliance for VLC playlist playback
+  let validStreamUrl = streamUrl || "";
+  const protoIdx = validStreamUrl.indexOf("://");
+  if (protoIdx !== -1) {
+    const proto = validStreamUrl.substring(0, protoIdx);
+    const rest = validStreamUrl.substring(protoIdx + 3);
+    const slashIdx = rest.indexOf("/");
+    if (slashIdx !== -1) {
+      const host = rest.substring(0, slashIdx);
+      let path = rest.substring(slashIdx);
+      path = path
+        .replace(/ /g, "%20")
+        .replace(/\[/g, "%5B")
+        .replace(/\]/g, "%5D")
+        .replace(/"/g, "%22");
+      validStreamUrl = `${proto}://${host}${path}`;
+    }
+  }
+
   // Generate standard M3U playlist file content
-  const m3uContent = `#EXTM3U\n#EXTINF:-1,${title}\n${streamUrl}\n`;
+  const m3uContent = `#EXTM3U\n#EXTINF:-1,${title}\n${validStreamUrl}\n`;
   const sanitizedTitle = title.replace(/[^a-zA-Z0-9_\-\. ]/g, "_");
 
   return new NextResponse(m3uContent, {
