@@ -240,7 +240,6 @@ DhakaFLIX is fully compatible with [Vercel](https://vercel.com/) and containeriz
 
 ---
 
-## 🛡️ License & Disclaimer
+## 🛡️ Disclaimer
 
-- **License**: Released under the [MIT License](LICENSE).
 - **Disclaimer**: DhakaFLIX does not host, store, or upload any media files. It is an open-source user interface that indexes publicly accessible intranet directory listings across local BDIX networks for personal, non-commercial use. All trademarks, movie titles, and metadata belong to their respective copyright holders.
