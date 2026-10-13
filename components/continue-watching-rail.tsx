@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import Link from "next/link";
 import {
   Trash2,
   X,
@@ -175,9 +176,10 @@ export function ContinueWatchingRail({
 
               {/* Bottom Metadata & Play Bar */}
               <div className="p-3 space-y-2">
-                <div
-                  onClick={() => onSelectMovie(asCatalogMovie)}
-                  className="cursor-pointer group/title"
+                <Link
+                  href={`/movie/${encodeURIComponent(item.id)}`}
+                  onClick={() => onSelectMovie?.(asCatalogMovie)}
+                  className="cursor-pointer group/title block"
                 >
                   <h3 className="text-xs sm:text-sm font-bold text-white truncate group-hover/title:text-[#e50914] transition">
                     {item.title}
@@ -187,7 +189,7 @@ export function ContinueWatchingRail({
                       {item.episodeTitle}
                     </p>
                   )}
-                </div>
+                </Link>
 
                 {/* Quick Actions */}
                 <div className="flex items-center gap-2 pt-1">
@@ -196,7 +198,7 @@ export function ContinueWatchingRail({
                       if (directStreamUrl) {
                         onPlayVlc(directStreamUrl, item.title);
                       } else {
-                        onSelectMovie(asCatalogMovie);
+                        onSelectMovie?.(asCatalogMovie);
                       }
                     }}
                     className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-[#e50914] hover:bg-red-700 text-white text-xs font-bold transition shadow-md active:scale-95"
@@ -205,12 +207,13 @@ export function ContinueWatchingRail({
                     <span>Resume</span>
                   </button>
 
-                  <button
-                    onClick={() => onSelectMovie(asCatalogMovie)}
-                    className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white text-xs font-semibold border border-white/10 transition active:scale-95"
+                  <Link
+                    href={`/movie/${encodeURIComponent(item.id)}`}
+                    onClick={() => onSelectMovie?.(asCatalogMovie)}
+                    className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white text-xs font-semibold border border-white/10 transition active:scale-95 cursor-pointer"
                   >
                     Details
-                  </button>
+                  </Link>
                 </div>
               </div>
             </div>

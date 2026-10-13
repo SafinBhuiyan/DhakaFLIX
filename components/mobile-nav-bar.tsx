@@ -57,65 +57,75 @@ export function MobileNavBar({
 
   return (
     <>
-      {/* 1. Fixed Bottom Navigation Bar (Mobile & Tablet Only) */}
+      {/* 1. Floating Apple-Style Glass Bottom Navigation Bar */}
       <nav
         aria-label="Mobile Bottom Navigation"
-        className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-[#121214]/95 backdrop-blur-xl border-t border-white/10 px-2 py-1 safe-area-pb shadow-2xl"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+12px)] inset-x-0 mx-auto w-[calc(100%-2rem)] max-w-sm z-40 md:hidden"
       >
-        <div className="flex items-center justify-around max-w-md mx-auto">
+        <div className="flex items-center justify-around p-1.5 rounded-full bg-[#141417]/80 backdrop-blur-2xl backdrop-saturate-150 border border-white/15 shadow-[0_12px_40px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.25)] ring-1 ring-black/40">
           {/* Home Tab */}
           <button
             onClick={() => handleItemClick("home")}
-            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all ${
+            className={`relative flex flex-col items-center justify-center py-1.5 px-3.5 rounded-full transition-all duration-200 active:scale-90 ${
               isHomeActive
-                ? "text-[#e50914] font-bold scale-105"
+                ? "text-white bg-white/[0.12] shadow-sm"
                 : "text-neutral-400 hover:text-white"
             }`}
           >
-            <Home className="w-5 h-5" />
-            <span className="text-[10px] mt-0.5">Home</span>
+            <Home className={`w-[18px] h-[18px] transition-transform ${isHomeActive ? "scale-110 text-[#e50914]" : ""}`} />
+            <span className={`text-[10px] font-medium tracking-tight mt-0.5 ${isHomeActive ? "font-bold text-white" : ""}`}>Home</span>
+            {isHomeActive && (
+              <span className="absolute bottom-1 w-1 h-1 rounded-full bg-[#e50914] shadow-[0_0_6px_#e50914]" />
+            )}
           </button>
 
           {/* Movies Tab */}
           <button
             onClick={() => handleItemClick("movies1080p")}
-            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all ${
+            className={`relative flex flex-col items-center justify-center py-1.5 px-3.5 rounded-full transition-all duration-200 active:scale-90 ${
               isMoviesActive
-                ? "text-[#e50914] font-bold scale-105"
+                ? "text-white bg-white/[0.12] shadow-sm"
                 : "text-neutral-400 hover:text-white"
             }`}
           >
-            <Film className="w-5 h-5" />
-            <span className="text-[10px] mt-0.5">Movies</span>
+            <Film className={`w-[18px] h-[18px] transition-transform ${isMoviesActive ? "scale-110 text-[#e50914]" : ""}`} />
+            <span className={`text-[10px] font-medium tracking-tight mt-0.5 ${isMoviesActive ? "font-bold text-white" : ""}`}>Movies</span>
+            {isMoviesActive && (
+              <span className="absolute bottom-1 w-1 h-1 rounded-full bg-[#e50914] shadow-[0_0_6px_#e50914]" />
+            )}
           </button>
 
           {/* Series Tab */}
           <button
             onClick={() => handleItemClick("tvSeries")}
-            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all ${
+            className={`relative flex flex-col items-center justify-center py-1.5 px-3.5 rounded-full transition-all duration-200 active:scale-90 ${
               isSeriesActive
-                ? "text-[#e50914] font-bold scale-105"
+                ? "text-white bg-white/[0.12] shadow-sm"
                 : "text-neutral-400 hover:text-white"
             }`}
           >
-            <Tv className="w-5 h-5" />
-            <span className="text-[10px] mt-0.5">Series</span>
+            <Tv className={`w-[18px] h-[18px] transition-transform ${isSeriesActive ? "scale-110 text-[#e50914]" : ""}`} />
+            <span className={`text-[10px] font-medium tracking-tight mt-0.5 ${isSeriesActive ? "font-bold text-white" : ""}`}>Series</span>
+            {isSeriesActive && (
+              <span className="absolute bottom-1 w-1 h-1 rounded-full bg-[#e50914] shadow-[0_0_6px_#e50914]" />
+            )}
           </button>
 
           {/* Categories Tab (Opens Bottom Sheet) */}
           <button
             onClick={() => setSheetOpen(true)}
-            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all ${
+            className={`relative flex flex-col items-center justify-center py-1.5 px-3.5 rounded-full transition-all duration-200 active:scale-90 ${
               sheetOpen || isOtherCategory
-                ? "text-[#e50914] font-bold scale-105"
+                ? "text-white bg-white/[0.12] shadow-sm"
                 : "text-neutral-400 hover:text-white"
             }`}
           >
-            <LayoutGrid className="w-5 h-5" />
-            <span className="text-[10px] mt-0.5">Categories</span>
+            <LayoutGrid className={`w-[18px] h-[18px] transition-transform ${sheetOpen || isOtherCategory ? "scale-110 text-[#e50914]" : ""}`} />
+            <span className={`text-[10px] font-medium tracking-tight mt-0.5 ${sheetOpen || isOtherCategory ? "font-bold text-white" : ""}`}>Categories</span>
+            {(sheetOpen || isOtherCategory) && (
+              <span className="absolute bottom-1 w-1 h-1 rounded-full bg-[#e50914] shadow-[0_0_6px_#e50914]" />
+            )}
           </button>
-
-
         </div>
       </nav>
 
@@ -129,7 +139,7 @@ export function MobileNavBar({
           />
 
           {/* Sheet Modal Container */}
-          <div className="relative z-10 bg-[#161619] border-t border-white/15 rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col animate-in slide-in-from-bottom duration-250 overscroll-contain">
+          <div className="relative z-10 bg-[#141417]/95 backdrop-blur-2xl border-t border-white/15 rounded-t-[32px] shadow-2xl max-h-[85vh] flex flex-col animate-in slide-in-from-bottom duration-250 overscroll-contain">
             {/* Sheet Handle & Header */}
             <div className="p-4 pb-2 border-b border-white/10 shrink-0">
               <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-3" />

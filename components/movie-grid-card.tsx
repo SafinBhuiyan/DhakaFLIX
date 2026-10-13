@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Star, Info } from "lucide-react";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 import { MoviePosterPlaceholder } from "@/components/movie-poster-placeholder";
@@ -9,36 +10,30 @@ import { VlcIcon } from "@/components/vlc-icon";
 interface MovieGridCardProps {
   movie: CatalogMovie;
   onPlayVlc?: (streamUrl: string, title: string) => void;
-  onSelectMovie: (movie: CatalogMovie) => void;
+  onSelectMovie?: (movie: CatalogMovie) => void;
 }
 
 export function MovieGridCard({ movie, onSelectMovie, onPlayVlc }: MovieGridCardProps) {
   const [imgError, setImgError] = useState(false);
   const [fallbackAttempted, setFallbackAttempted] = useState(false);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onSelectMovie(movie);
-    }
-  };
-
   const showPlaceholder = !movie.poster || imgError;
   const streamUrl = movie.videoUrl || movie.serverUrl;
   const canQuickPlay = Boolean(onPlayVlc && streamUrl && !streamUrl.endsWith("/"));
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <Link
+      href={`/movie/${encodeURIComponent(movie.id)}`}
       aria-label={`${movie.title} (${movie.year})`}
-      onClick={() => onSelectMovie(movie)}
-      onKeyDown={handleKeyDown}
-      className="group relative flex flex-col cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded-xl transition-all duration-200"
+      onClick={() => {
+        if (onSelectMovie) {
+          onSelectMovie(movie);
+        }
+      }}
+      className="group relative flex flex-col cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded-xl transition-all duration-200 block"
     >
       {/* 2:3 Poster Frame */}
       <div className="relative aspect-[2/3] w-full rounded-xl overflow-hidden bg-[#18181a] border border-white/5 group-hover:border-[#e50914]/70 transition-all shadow-md group-hover:shadow-xl group-hover:shadow-red-950/20">
-        
         {/* Render Poster Image or Empty Placeholder */}
         {showPlaceholder ? (
           <MoviePosterPlaceholder
@@ -82,6 +77,7 @@ export function MovieGridCard({ movie, onSelectMovie, onPlayVlc }: MovieGridCard
           {canQuickPlay ? (
             <button
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 if (onPlayVlc && streamUrl) {
                   onPlayVlc(streamUrl, movie.title);
@@ -106,8 +102,8 @@ export function MovieGridCard({ movie, onSelectMovie, onPlayVlc }: MovieGridCard
 
       {/* Info Section Below Poster */}
       <div className="pt-2 px-0.5 space-y-0.5">
-        <h3 
-          className="text-xs sm:text-sm font-semibold text-neutral-200 truncate group-hover:text-[#e50914] transition" 
+        <h3
+          className="text-xs sm:text-sm font-semibold text-neutral-200 truncate group-hover:text-[#e50914] transition"
           title={movie.title}
         >
           {movie.title}
@@ -125,6 +121,6 @@ export function MovieGridCard({ movie, onSelectMovie, onPlayVlc }: MovieGridCard
           )}
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

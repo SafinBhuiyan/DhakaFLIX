@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { MobileNavBar } from "@/components/mobile-nav-bar";
 import { HeroSlider } from "@/components/hero-slider";
 import { HomeMediaRail, HomeRailSection } from "@/components/home-media-rail";
 import { MovieGridCard } from "@/components/movie-grid-card";
-import { StreamModal } from "@/components/stream-modal";
 import { BackToTop } from "@/components/back-to-top";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 import { ContinueWatchingRail } from "@/components/continue-watching-rail";
+import { playInVlc } from "@/lib/vlc-player";
 import {
   getWatchHistory,
   addToWatchHistory,
@@ -26,8 +27,28 @@ import {
 } from "lucide-react";
 
 export default function Home() {
+  const router = useRouter();
   const [activeCategory, setActiveCategory] = useState<string>("home");
   const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Read URL query params on initial mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const cat = params.get("category");
+      const q = params.get("search");
+      if (cat && cat !== "home") {
+        setActiveCategory(cat);
+      }
+      if (q) {
+        setSearchQuery(q);
+      }
+    }
+  }, []);
+
+  const handleSelectMovie = (movie: CatalogMovie) => {
+    router.push(`/movie/${encodeURIComponent(movie.id)}`);
+  };
 
   // Home Specific State
   const [homeSpotlight, setHomeSpotlight] = useState<CatalogMovie[]>([]);
@@ -69,8 +90,7 @@ export default function Home() {
   const [searchResults, setSearchResults] = useState<CatalogMovie[]>([]);
   const [searching, setSearching] = useState<boolean>(false);
 
-  // Modal & VLC Feedback
-  const [selectedMovie, setSelectedMovie] = useState<CatalogMovie | null>(null);
+  // VLC Feedback Toast
   const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const isSearching = !!searchQuery.trim();
@@ -231,143 +251,22 @@ export default function Home() {
   }, [searchQuery]);
 
   // 1-Click Native Play in VLC (Android, iOS & Desktop)
-  const handlePlayVlc = async (streamUrl: string, title: string) => {
-    if (!streamUrl || !streamUrl.trim()) {
-      setToastMessage({ text: `No direct stream URL available for "${title}"`, type: "error" });
-      setTimeout(() => setToastMessage(null), 3500);
-      return;
-    }
-
-    if (streamUrl.endsWith("/")) {
-      window.open(streamUrl, "_blank");
-      setToastMessage({ text: `Opening directory for "${title}" on BDIX server...`, type: "success" });
-      setTimeout(() => setToastMessage(null), 3500);
-      return;
-    }
-
-    // Format URL through Helper Relay if enabled (for mobile data / off-network access)
-    let validUrl = formatStreamUrl(streamUrl);
-
-    // If not using relay, sanitize stream URL for VLC (RFC 3986 compliance: encode spaces and brackets)
-    if (validUrl === streamUrl) {
-      const protoIdx = validUrl.indexOf("://");
-      if (protoIdx !== -1) {
-        const proto = validUrl.substring(0, protoIdx);
-        const rest = validUrl.substring(protoIdx + 3);
-        const slashIdx = rest.indexOf("/");
-        if (slashIdx !== -1) {
-          const host = rest.substring(0, slashIdx);
-          let path = rest.substring(slashIdx);
-          path = path
-            .replace(/ /g, "%20")
-            .replace(/\[/g, "%5B")
-            .replace(/\]/g, "%5D")
-            .replace(/"/g, "%22");
-          validUrl = `${proto}://${host}${path}`;
-        }
-      }
-    }
-
-    // Automatically record into user's client-side watch history
+  const handlePlayVlc = (streamUrl: string, title: string) => {
     const matched =
-      selectedMovie ||
       homeSpotlight.find((m) => m.title === title || (m.videoUrl && m.videoUrl === streamUrl)) ||
       movies.find((m) => m.title === title || (m.videoUrl && m.videoUrl === streamUrl));
 
-    const isTvCandidate =
-      Boolean(matched?.category && /tv|series/i.test(matched.category)) ||
-      /tv|series|episode|season/i.test(title);
-
-    const updatedHistory = addToWatchHistory({
-      id: matched?.id || encodeURIComponent(validUrl),
-      title: matched?.title || title,
-      year: matched?.year,
-      quality: matched?.quality,
-      poster: matched?.poster,
-      backdrop: matched?.backdrop,
-      rating: matched?.rating,
-      serverUrl: matched?.serverUrl,
-      videoUrl: validUrl,
-      category: matched?.category,
-      sourceServer: matched?.sourceServer,
-      isSeries: isTvCandidate,
+    playInVlc({
+      streamUrl,
+      title,
+      movie: matched,
+      onToast: (msg) => {
+        setToastMessage(msg);
+        setTimeout(() => setToastMessage(null), 3500);
+      },
+    }).then(() => {
+      setWatchHistory(getWatchHistory());
     });
-    setWatchHistory(updatedHistory);
-
-    const isMobile = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
-
-    if (isMobile) {
-      setToastMessage({ text: `Opening "${title}" in VLC Mobile...`, type: "success" });
-
-      if (isAndroid) {
-        const cleanUrl = validUrl.replace(/^https?:\/\//i, "");
-        const scheme = validUrl.startsWith("https") ? "https" : "http";
-        const androidIntent = `intent://${cleanUrl}#Intent;package=org.videolan.vlc;type=video/*;scheme=${scheme};end`;
-
-        try {
-          window.location.href = androidIntent;
-        } catch {
-          window.location.href = `vlc://${validUrl}`;
-        }
-      } else {
-        window.location.href = `vlc://${validUrl}`;
-      }
-
-      setTimeout(() => {
-        setToastMessage({
-          text: `Opened in VLC. If VLC didn't open automatically, download the .m3u playlist in the modal.`,
-          type: "success",
-        });
-      }, 2500);
-
-      setTimeout(() => setToastMessage(null), 5500);
-      return;
-    }
-
-    // Desktop: Localhost Direct Process or Protocol
-    const isLocalhost = typeof window !== "undefined" && (
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1" ||
-      window.location.hostname === "[::1]" ||
-      window.location.hostname === "::1"
-    );
-
-    if (isLocalhost) {
-      setToastMessage({ text: `Launching VLC Media Player for "${title}"...`, type: "success" });
-      try {
-        const res = await fetch("/api/vlc/play", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ streamUrl: validUrl }),
-        });
-        const data = await res.json();
-        if (data.ok) {
-          setToastMessage({ text: `Playing "${title}" in VLC!`, type: "success" });
-          setTimeout(() => setToastMessage(null), 3500);
-          return;
-        }
-      } catch {}
-    }
-
-    // Remote / Production Desktop: 1-Click Launch via VLC Protocol
-    setToastMessage({ text: `Launching "${title}" in VLC Media Player...`, type: "success" });
-
-    try {
-      window.location.href = `vlc://${validUrl}`;
-      setTimeout(() => {
-        setToastMessage({ text: `Playing "${title}" in VLC!`, type: "success" });
-      }, 1500);
-      setTimeout(() => setToastMessage(null), 4500);
-    } catch {
-      const playlistUrl = `/api/vlc/playlist?url=${encodeURIComponent(validUrl)}&title=${encodeURIComponent(title)}`;
-      const link = document.createElement("a");
-      link.href = playlistUrl;
-      link.download = `${title.replace(/[^a-zA-Z0-9_\-\. ]/g, "_")}.m3u`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
   };
 
   return (
@@ -377,7 +276,7 @@ export default function Home() {
         activeCategory={activeCategory}
         onSelectCategory={handleSelectCategory}
         onSearch={handleSearch}
-        onSelectMovie={setSelectedMovie}
+        onSelectMovie={handleSelectMovie}
         onPlayVlc={handlePlayVlc}
         onHomeClick={() => handleSelectCategory("home")}
       />
@@ -446,7 +345,7 @@ export default function Home() {
                       key={`search-${movie.id}-${idx}`}
                       movie={movie}
                       onPlayVlc={handlePlayVlc}
-                      onSelectMovie={setSelectedMovie}
+                      onSelectMovie={handleSelectMovie}
                     />
                   ))}
                 </div>
@@ -464,7 +363,7 @@ export default function Home() {
                 <HeroSlider
                   movies={homeSpotlight}
                   onPlayVlc={handlePlayVlc}
-                  onSelectMovie={setSelectedMovie}
+                  onSelectMovie={handleSelectMovie}
                 />
               )}
 
@@ -473,7 +372,7 @@ export default function Home() {
                 <ContinueWatchingRail
                   items={watchHistory}
                   onPlayVlc={handlePlayVlc}
-                  onSelectMovie={setSelectedMovie}
+                  onSelectMovie={handleSelectMovie}
                   onRemoveItem={handleRemoveHistoryItem}
                   onClearAll={handleClearHistory}
                 />
@@ -493,7 +392,7 @@ export default function Home() {
                       key={section.id}
                       section={section}
                       onSelectCategory={handleSelectCategory}
-                      onSelectMovie={setSelectedMovie}
+                      onSelectMovie={handleSelectMovie}
                       onPlayVlc={handlePlayVlc}
                     />
                   ))}
@@ -531,7 +430,7 @@ export default function Home() {
                       key={`${activeCategory}-${movie.id}-${idx}`}
                       movie={movie}
                       onPlayVlc={handlePlayVlc}
-                      onSelectMovie={setSelectedMovie}
+                      onSelectMovie={handleSelectMovie}
                     />
                   ))}
                 </div>
@@ -570,7 +469,7 @@ export default function Home() {
       </div>
 
       {/* Clean Footer */}
-      <footer className="bg-[#121213] border-t border-white/10 py-6 mt-16 text-center text-xs text-neutral-400 space-y-1">
+      <footer className="bg-[#121213] border-t border-white/10 py-6 pb-28 sm:pb-6 mt-16 text-center text-xs text-neutral-400 space-y-1">
         <p className="font-semibold text-white tracking-wide">
           DHAKA<span className="text-[#e50914]">FLIX</span> • Local High-Speed BDIX Media
         </p>
@@ -578,13 +477,6 @@ export default function Home() {
           Connected Storage: Server 7 • Server 14 • Server 12 • Server 10 • Server 8
         </p>
       </footer>
-
-      {/* Stream Selector Modal with direct VLC Play */}
-      <StreamModal
-        movie={selectedMovie}
-        onClose={() => setSelectedMovie(null)}
-        onPlayVlc={handlePlayVlc}
-      />
 
       {/* Floating VLC Launch Feedback Toast */}
       {toastMessage && (

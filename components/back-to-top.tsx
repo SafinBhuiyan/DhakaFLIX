@@ -64,7 +64,7 @@ export function BackToTop({ threshold = 400, className = "" }: BackToTopProps) {
 
   return (
     <div
-      className={`fixed bottom-20 right-4 md:bottom-8 md:right-8 z-40 transition-all duration-300 ease-out ${
+      className={`fixed bottom-24 right-4 md:bottom-8 md:right-8 z-40 transition-all duration-300 ease-out ${
         visible
           ? "opacity-100 translate-y-0 pointer-events-auto"
           : "opacity-0 translate-y-4 pointer-events-none"

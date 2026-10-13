@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { Info, ChevronLeft, ChevronRight, Star, Bookmark, Check } from "lucide-react";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 import { MoviePosterPlaceholder } from "@/components/movie-poster-placeholder";
@@ -124,20 +125,20 @@ export function HeroSlider({ movie, movies, onPlayVlc, onSelectMovie }: HeroSlid
       <div className="absolute inset-0 bg-gradient-to-t from-[#0e0e0f] via-[#0e0e0f]/80 to-transparent"></div>
       <div className="absolute inset-0 bg-gradient-to-r from-[#0e0e0f] via-[#0e0e0f]/60 to-transparent"></div>
 
-      {/* Slide Navigation Arrows (Desktop & Tablet) */}
+      {/* Slide Navigation Arrows (Desktop & Tablet only) */}
       {slideList.length > 1 && (
         <>
           <button
             onClick={handlePrev}
             aria-label="Previous featured title"
-            className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-full bg-black/60 hover:bg-black/80 text-white/90 hover:text-white border border-white/10 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200 active:scale-95 shadow-xl backdrop-blur-sm"
+            className="hidden sm:block absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white border border-white/10 opacity-0 group-hover:opacity-100 transition-all duration-200 active:scale-95 shadow-xl backdrop-blur-sm"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button
             onClick={handleNext}
             aria-label="Next featured title"
-            className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-full bg-black/60 hover:bg-black/80 text-white/90 hover:text-white border border-white/10 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200 active:scale-95 shadow-xl backdrop-blur-sm"
+            className="hidden sm:block absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white border border-white/10 opacity-0 group-hover:opacity-100 transition-all duration-200 active:scale-95 shadow-xl backdrop-blur-sm"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -197,13 +198,16 @@ export function HeroSlider({ movie, movies, onPlayVlc, onSelectMovie }: HeroSlid
           </button>
 
           {/* Stream Selector / Details */}
-          <button
-            onClick={() => onSelectMovie(currentMovie)}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs sm:text-sm border border-white/10 transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 min-h-[42px] backdrop-blur-sm"
+          <Link
+            href={`/movie/${encodeURIComponent(currentMovie.id)}`}
+            onClick={() => onSelectMovie?.(currentMovie)}
+            className="flex items-center justify-center gap-2 px-3 sm:px-5 py-2.5 sm:py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs sm:text-sm border border-white/10 transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 min-h-[42px] backdrop-blur-sm cursor-pointer"
+            title="Stream Details"
+            aria-label="Stream Details"
           >
             <Info className="w-4 h-4 text-neutral-300" />
-            <span>Stream Details</span>
-          </button>
+            <span className="hidden sm:inline">Stream Details</span>
+          </Link>
 
           {/* Quick Watchlist Bookmark Button */}
           <button
@@ -213,12 +217,13 @@ export function HeroSlider({ movie, movies, onPlayVlc, onSelectMovie }: HeroSlid
                 setBookmarked(isSaved);
               }
             }}
-            className={`flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl border transition active:scale-95 min-h-[42px] backdrop-blur-sm ${
+            className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border transition active:scale-95 min-h-[42px] backdrop-blur-sm ${
               bookmarked
                 ? "bg-red-600/20 text-[#e50914] border-red-500/40"
                 : "bg-white/10 hover:bg-white/15 text-white border-white/10"
             }`}
             title={bookmarked ? "Saved in Watchlist" : "Add to Watchlist"}
+            aria-label={bookmarked ? "Saved in Watchlist" : "Add to Watchlist"}
           >
             {bookmarked ? (
               <>
@@ -235,9 +240,9 @@ export function HeroSlider({ movie, movies, onPlayVlc, onSelectMovie }: HeroSlid
         </div>
       </div>
 
-      {/* Slide Indicators — top-center on mobile, bottom-right on sm+ */}
+      {/* Slide Indicators — desktop only (hidden on mobile) */}
       {slideList.length > 1 && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 sm:translate-x-0 sm:left-auto sm:top-auto sm:bottom-6 sm:right-8 z-20 flex items-center gap-1.5 bg-black/40 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-sm">
+        <div className="hidden sm:flex absolute bottom-6 right-8 z-20 items-center gap-1.5 bg-black/40 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-sm">
           {slideList.map((_, idx) => (
             <button
               key={`dot-${idx}`}

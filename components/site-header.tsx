@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Play,
@@ -90,6 +91,7 @@ export function SiteHeader({
   onPlayVlc,
   onHomeClick,
 }: SiteHeaderProps) {
+  const router = useRouter();
   const [searchInput, setSearchInput] = useState("");
   const [suggestions, setSuggestions] = useState<CatalogMovie[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
@@ -172,6 +174,8 @@ export function SiteHeader({
     setIsMobileSearchActive(false);
     if (onSelectMovie) {
       onSelectMovie(movie);
+    } else {
+      router.push(`/movie/${encodeURIComponent(movie.id)}`);
     }
   };
 
