@@ -1,7 +1,7 @@
 {
   "name": "dhakaflix",
   "version": "1.0.0",
-  "description": "High-performance streaming web application and automated catalog indexer for high-speed BDIX media clusters.",
+  "description": "An open-source user interface for enhancing the media browsing experience for users whose ISP provides access to DhakaFLIX BDIX servers.",
   "type": "module",
   "private": true,
   "scripts": {
