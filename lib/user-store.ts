@@ -29,7 +29,18 @@ export function getWatchHistory(): WatchHistoryItem[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY_HISTORY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed: WatchHistoryItem[] = JSON.parse(raw);
+    return parsed.map((item) => {
+      if (item.videoUrl && item.videoUrl.includes("?url=")) {
+        try {
+          const u = new URL(item.videoUrl);
+          const inner = u.searchParams.get("url");
+          if (inner) item.videoUrl = decodeURIComponent(inner);
+        } catch {}
+      }
+      return item;
+    });
   } catch {
     return [];
   }

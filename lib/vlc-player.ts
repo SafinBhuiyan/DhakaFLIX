@@ -75,7 +75,7 @@ export async function playInVlc({
     backdrop: movie?.backdrop,
     rating: movie?.rating,
     serverUrl: movie?.serverUrl,
-    videoUrl: validUrl,
+    videoUrl: streamUrl,
     category: movie?.category,
     sourceServer: movie?.sourceServer,
     isSeries: isTvCandidate,

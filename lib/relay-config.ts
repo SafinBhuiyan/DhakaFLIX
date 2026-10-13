@@ -64,13 +64,21 @@ export async function checkRelayHealth(url?: string): Promise<boolean> {
 export function formatStreamUrl(streamUrl: string, forceRelay?: boolean): string {
   if (!streamUrl || typeof streamUrl !== "string") return "";
 
-  // If already proxied or not a private BDIX address, return cleaned URL
-  const isBdix = /172\.16\.50\./i.test(streamUrl);
-  if (!isBdix) return streamUrl;
+  // 1. If already proxied by relay or contains a tunnel, NEVER re-proxy it!
+  if (streamUrl.includes("/stream/") || streamUrl.includes("trycloudflare.com")) {
+    return streamUrl;
+  }
+
+  // 2. Must be a direct BDIX URL (starts with http://172.16.50. or https://172.16.50.)
+  const isDirectBdix = /^https?:\/\/172\.16\.50\./i.test(streamUrl.trim());
+  if (!isDirectBdix) return streamUrl;
 
   const relay = getRelayUrl();
-  const shouldUse = forceRelay !== undefined ? forceRelay : isRelayEnabled();
+  if (relay && streamUrl.startsWith(relay)) {
+    return streamUrl;
+  }
 
+  const shouldUse = forceRelay !== undefined ? forceRelay : isRelayEnabled();
   if (!shouldUse || !relay) {
     return streamUrl;
   }
