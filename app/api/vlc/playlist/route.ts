@@ -41,9 +41,13 @@ export async function GET(req: NextRequest) {
           videoFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
           let m3u = "#EXTM3U\n";
+          const relayUrl = process.env.NEXT_PUBLIC_HELPER_RELAY_URL?.replace(/\/+$/, "");
           for (const vf of videoFiles) {
             const cleanName = vf.name.replace(/\.(mkv|mp4|avi|mov|wmv|m4v|webm)$/i, "");
-            m3u += `#EXTINF:-1,${title} - ${cleanName}\n${sanitizeUrl(vf.href)}\n`;
+            const streamHref = relayUrl && vf.href.includes("172.16.50.")
+              ? `${relayUrl}/stream/${encodeURIComponent(vf.name)}?url=${encodeURIComponent(vf.href)}`
+              : sanitizeUrl(vf.href);
+            m3u += `#EXTINF:-1,${title} - ${cleanName}\n${streamHref}\n`;
           }
 
           const sanitizedTitle = `${title}_Playlist`.replace(/[^a-zA-Z0-9_\-\. ]/g, "_");
@@ -68,8 +72,12 @@ export async function GET(req: NextRequest) {
 
           if (matchedSeason?.episodes?.length > 0) {
             let m3u = "#EXTM3U\n";
+            const relayUrl = process.env.NEXT_PUBLIC_HELPER_RELAY_URL?.replace(/\/+$/, "");
             for (const ep of matchedSeason.episodes) {
-              m3u += `#EXTINF:-1,${title} - ${ep.title} (${ep.fileName})\n${sanitizeUrl(ep.streamUrl)}\n`;
+              const streamHref = relayUrl && ep.streamUrl.includes("172.16.50.")
+                ? `${relayUrl}/stream/${encodeURIComponent(ep.fileName || "episode.mp4")}?url=${encodeURIComponent(ep.streamUrl)}`
+                : sanitizeUrl(ep.streamUrl);
+              m3u += `#EXTINF:-1,${title} - ${ep.title} (${ep.fileName})\n${streamHref}\n`;
             }
 
             const sanitizedTitle = `${title}_${matchedSeason.seasonName || "Season"}`.replace(/[^a-zA-Z0-9_\-\. ]/g, "_");

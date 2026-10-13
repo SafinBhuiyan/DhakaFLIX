@@ -17,6 +17,7 @@ import {
   clearWatchHistory,
   WatchHistoryItem,
 } from "@/lib/user-store";
+import { formatStreamUrl } from "@/lib/relay-config";
 import {
   Play,
   Loader2,
@@ -244,22 +245,26 @@ export default function Home() {
       return;
     }
 
-    // Sanitize stream URL for VLC (RFC 3986 compliance: encode spaces and brackets)
-    let validUrl = streamUrl;
-    const protoIdx = validUrl.indexOf("://");
-    if (protoIdx !== -1) {
-      const proto = validUrl.substring(0, protoIdx);
-      const rest = validUrl.substring(protoIdx + 3);
-      const slashIdx = rest.indexOf("/");
-      if (slashIdx !== -1) {
-        const host = rest.substring(0, slashIdx);
-        let path = rest.substring(slashIdx);
-        path = path
-          .replace(/ /g, "%20")
-          .replace(/\[/g, "%5B")
-          .replace(/\]/g, "%5D")
-          .replace(/"/g, "%22");
-        validUrl = `${proto}://${host}${path}`;
+    // Format URL through Helper Relay if enabled (for mobile data / off-network access)
+    let validUrl = formatStreamUrl(streamUrl);
+
+    // If not using relay, sanitize stream URL for VLC (RFC 3986 compliance: encode spaces and brackets)
+    if (validUrl === streamUrl) {
+      const protoIdx = validUrl.indexOf("://");
+      if (protoIdx !== -1) {
+        const proto = validUrl.substring(0, protoIdx);
+        const rest = validUrl.substring(protoIdx + 3);
+        const slashIdx = rest.indexOf("/");
+        if (slashIdx !== -1) {
+          const host = rest.substring(0, slashIdx);
+          let path = rest.substring(slashIdx);
+          path = path
+            .replace(/ /g, "%20")
+            .replace(/\[/g, "%5B")
+            .replace(/\]/g, "%5D")
+            .replace(/"/g, "%22");
+          validUrl = `${proto}://${host}${path}`;
+        }
       }
     }
 

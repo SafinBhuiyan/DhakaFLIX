@@ -21,6 +21,7 @@ import { DhakaFlixStream, DhakaEpisode, DhakaSeason } from "@/lib/dhakaflix";
 import { MoviePosterPlaceholder } from "@/components/movie-poster-placeholder";
 import { VlcIcon } from "@/components/vlc-icon";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
+import { formatStreamUrl } from "@/lib/relay-config";
 
 function YoutubeIcon({ className = "w-4 h-4", ...props }: React.SVGProps<SVGSVGElement>) {
   return (
@@ -416,7 +417,7 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
             {!isSeries && (
               <>
                 <a
-                  href={`/api/vlc/playlist?url=${encodeURIComponent(primaryStreamUrl)}&title=${encodeURIComponent(primaryTitle)}`}
+                  href={`/api/vlc/playlist?url=${encodeURIComponent(formatStreamUrl(primaryStreamUrl))}&title=${encodeURIComponent(primaryTitle)}`}
                   download
                   className="p-2.5 sm:px-3 sm:py-3 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition flex items-center justify-center min-w-[42px] min-h-[42px]"
                   title="Download .m3u playlist file"
@@ -425,11 +426,11 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                 </a>
 
                 <button
-                  onClick={() => handleCopy(primaryStreamUrl)}
+                  onClick={() => handleCopy(formatStreamUrl(primaryStreamUrl))}
                   className="p-2.5 sm:px-3 sm:py-3 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition flex items-center justify-center min-w-[42px] min-h-[42px]"
                   title="Copy direct stream link"
                 >
-                  {copiedUrl === primaryStreamUrl ? (
+                  {copiedUrl === formatStreamUrl(primaryStreamUrl) || copiedUrl === primaryStreamUrl ? (
                     <Check className="w-4 h-4 text-emerald-400" />
                   ) : (
                     <Copy className="w-4 h-4" />
