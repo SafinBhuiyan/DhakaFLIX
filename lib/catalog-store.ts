@@ -42,7 +42,7 @@ export async function searchModularCatalog(query: string, maxResults = 36): Prom
   }
 
   // 2. Search main sections in priority order
-  const prioritySections = ["tvSeries", "movies1080p", "hindi", "imdb250", "southDubbed", "animation1080p", "foreign", "kolkata"];
+  const prioritySections = ["tvSeries", "koreanTv", "cartoonTv", "movies1080p", "hindi", "imdb250", "southDubbed", "animation1080p", "documentary", "foreign", "kolkata"];
   for (const catKey of prioritySections) {
     const catalog = await getCategoryCatalog(catKey);
     if (!catalog?.items) continue;
@@ -80,7 +80,11 @@ export async function getCategoryCatalog(categoryKey: string): Promise<any | nul
     categoryCache.set(categoryKey, { data, loadedAt: Date.now() });
     return data;
   } catch {
-    // If specific category is not found, fallback to movies1080p
+    // If specific TV/Series category is not found, fallback to tvSeries
+    if (categoryKey.includes("Tv") || categoryKey.includes("Series")) {
+      return getCategoryCatalog("tvSeries");
+    }
+    // Fallback to movies1080p
     if (categoryKey !== "movies1080p") {
       return getCategoryCatalog("movies1080p");
     }
@@ -95,8 +99,11 @@ export async function getCategoryCatalog(categoryKey: string): Promise<any | nul
 export const ALL_HOME_CATEGORIES = [
   { id: "movies1080p", title: "Latest 1080p Releases" },
   { id: "tvSeries", title: "Popular TV & Web Series" },
+  { id: "koreanTv", title: "Korean TV & Web Series" },
+  { id: "cartoonTv", title: "Anime & Cartoon TV Series" },
   { id: "hindi", title: "Hindi & Bollywood" },
   { id: "imdb250", title: "IMDb Top 250" },
+  { id: "documentary", title: "Documentaries & Docuseries" },
   { id: "southDubbed", title: "South Hindi Dubbed" },
   { id: "southMovies", title: "South Indian Movies" },
   { id: "kolkata", title: "Kolkata Bangla" },
@@ -161,9 +168,7 @@ export async function getHomeCatalog(): Promise<any | null> {
  * Find a specific TV series item from data/catalog/tvSeries.json
  */
 export async function findTvSeriesItem(url?: string, title?: string): Promise<any | null> {
-  const tvCatalog = await getCategoryCatalog("tvSeries");
-  if (!tvCatalog?.items || !Array.isArray(tvCatalog.items)) return null;
-
+  const catKeys = ["tvSeries", "koreanTv", "cartoonTv"];
   const cleanT = (s?: string) =>
     (s || "")
       .toLowerCase()
@@ -174,27 +179,32 @@ export async function findTvSeriesItem(url?: string, title?: string): Promise<an
   const normUrl = url ? url.toLowerCase().replace(/\/+$/, "") : "";
   const normTitle = cleanT(title);
 
-  // Pass 1: Exact matches
-  for (const item of tvCatalog.items) {
-    if (normUrl && item.serverUrl) {
-      const itemUrl = item.serverUrl.toLowerCase().replace(/\/+$/, "");
-      if (itemUrl === normUrl) return item;
-    }
-    if (normTitle && item.title) {
-      const itemClean = cleanT(item.title);
-      if (itemClean === normTitle) return item;
-    }
-  }
+  for (const catKey of catKeys) {
+    const tvCatalog = await getCategoryCatalog(catKey);
+    if (!tvCatalog?.items || !Array.isArray(tvCatalog.items)) continue;
 
-  // Pass 2: Fuzzy / inclusion matches
-  for (const item of tvCatalog.items) {
-    if (normUrl && item.serverUrl) {
-      const itemUrl = item.serverUrl.toLowerCase().replace(/\/+$/, "");
-      if (normUrl.includes(itemUrl) || itemUrl.includes(normUrl)) return item;
+    // Pass 1: Exact matches
+    for (const item of tvCatalog.items) {
+      if (normUrl && item.serverUrl) {
+        const itemUrl = item.serverUrl.toLowerCase().replace(/\/+$/, "");
+        if (itemUrl === normUrl) return item;
+      }
+      if (normTitle && item.title) {
+        const itemClean = cleanT(item.title);
+        if (itemClean === normTitle) return item;
+      }
     }
-    if (normTitle && normTitle.length >= 3 && item.title) {
-      const itemClean = cleanT(item.title);
-      if (itemClean.includes(normTitle) || normTitle.includes(itemClean)) return item;
+
+    // Pass 2: Fuzzy / inclusion matches
+    for (const item of tvCatalog.items) {
+      if (normUrl && item.serverUrl) {
+        const itemUrl = item.serverUrl.toLowerCase().replace(/\/+$/, "");
+        if (normUrl.includes(itemUrl) || itemUrl.includes(normUrl)) return item;
+      }
+      if (normTitle && normTitle.length >= 3 && item.title) {
+        const itemClean = cleanT(item.title);
+        if (itemClean.includes(normTitle) || normTitle.includes(itemClean)) return item;
+      }
     }
   }
 

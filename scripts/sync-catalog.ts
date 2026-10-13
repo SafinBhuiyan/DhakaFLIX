@@ -36,7 +36,6 @@ interface SectionConfig {
   server: string;
   url: string;
   isContainer: boolean;
-  scanFolders?: string[]; // Specific subfolders to inspect (e.g. 2026, 2025)
 }
 
 const SECTIONS: SectionConfig[] = [
@@ -46,7 +45,6 @@ const SECTIONS: SectionConfig[] = [
     server: "Server 14",
     url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/English%20Movies%20%281080p%29/`,
     isContainer: true,
-    scanFolders: ["2026/", "2025/", "2024/"],
   },
   {
     id: "hindi",
@@ -54,7 +52,6 @@ const SECTIONS: SectionConfig[] = [
     server: "Server 14",
     url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Hindi%20Movies/`,
     isContainer: true,
-    scanFolders: ["2026/", "2025/", "2024/"],
   },
   {
     id: "southDubbed",
@@ -62,7 +59,6 @@ const SECTIONS: SectionConfig[] = [
     server: "Server 14",
     url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/Hindi%20Dubbed/`,
     isContainer: true,
-    scanFolders: ["2026/", "2025/", "2024/"],
   },
   {
     id: "southMovies",
@@ -70,7 +66,6 @@ const SECTIONS: SectionConfig[] = [
     server: "Server 14",
     url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/South%20Movies/`,
     isContainer: true,
-    scanFolders: ["2026/", "2025/", "2024/"],
   },
   {
     id: "movies720p",
@@ -78,7 +73,6 @@ const SECTIONS: SectionConfig[] = [
     server: "Server 7",
     url: `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/English%20Movies/`,
     isContainer: true,
-    scanFolders: ["2026/", "2025/", "2024/"],
   },
   {
     id: "animation1080p",
@@ -93,7 +87,6 @@ const SECTIONS: SectionConfig[] = [
     server: "Server 14",
     url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/Animation%20Movies/`,
     isContainer: true,
-    scanFolders: ["2026/", "2025/", "2024/"],
   },
   {
     id: "kolkata",
@@ -101,7 +94,6 @@ const SECTIONS: SectionConfig[] = [
     server: "Server 7",
     url: `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Kolkata%20Bangla%20Movies/`,
     isContainer: true,
-    scanFolders: ["2026/", "2025/", "2024/"],
   },
   {
     id: "foreign",
@@ -109,7 +101,6 @@ const SECTIONS: SectionConfig[] = [
     server: "Server 7",
     url: `${DHAKA_SERVERS.server7}/DHAKA-FLIX-7/Foreign%20Language%20Movies/`,
     isContainer: true,
-    scanFolders: ["2026/", "2025/", "2024/"],
   },
   {
     id: "imdb250",
@@ -386,6 +377,33 @@ async function scrapeTvSeasons(folderUrl: string) {
   return [];
 }
 
+// ── Dynamic Scan URL Resolver ─────────────────────────────────────────────────
+
+async function resolveScanUrls(sec: SectionConfig): Promise<string[]> {
+  if (!sec.isContainer) {
+    return [sec.url];
+  }
+
+  const subDirs = await fetchH5aiDirectory(sec.url);
+  const folders = subDirs.filter((d) => d.isFolder);
+
+  // Check if subfolders are year folders (e.g. "(2026) 1080p", "(2026)", "2026")
+  const yearFolders = folders.filter((f) => /\b(19|20)\d{2}\b/.test(f.name));
+  if (yearFolders.length > 0) {
+    // Sort reverse chronological
+    yearFolders.sort((a, b) => {
+      const yA = parseInt((a.name.match(/\b\d{4}\b/) || ["0"])[0], 10);
+      const yB = parseInt((b.name.match(/\b\d{4}\b/) || ["0"])[0], 10);
+      return yB - yA;
+    });
+    // Scan the most recent 3 years (e.g. 2026, 2025, 2024)
+    return yearFolders.slice(0, 3).map((f) => f.href);
+  }
+
+  // If container by language or collection (e.g. Foreign Language Movies)
+  return folders.map((f) => f.href);
+}
+
 // ── Main Synchronization Logic ────────────────────────────────────────────────
 
 async function syncCatalog(autoPush = false) {
@@ -429,15 +447,8 @@ async function syncCatalog(autoPush = false) {
 
     console.log(`\nChecking category: ${sec.label} (${existingData.items.length} existing titles)...`);
 
-    // Determine target folders to scan for new uploads
-    const targetScanUrls: string[] = [];
-    if (sec.isContainer && sec.scanFolders?.length) {
-      for (const sub of sec.scanFolders) {
-        targetScanUrls.push(`${sec.url}${sub}`);
-      }
-    } else {
-      targetScanUrls.push(sec.url);
-    }
+    // Dynamically determine target folders to scan for new uploads
+    const targetScanUrls = await resolveScanUrls(sec);
 
     const candidateFolders: H5aiItem[] = [];
     for (const scanUrl of targetScanUrls) {

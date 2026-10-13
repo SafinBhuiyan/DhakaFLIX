@@ -161,39 +161,31 @@ export const DHAKA_SECTIONS: Record<string, { id: string; label: string; server:
   },
   koreanTv: {
     id: "koreanTv",
-    label: "KOREAN TV & WEB Series",
+    label: "Korean TV & Web Series",
     server: "Server 14",
     url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/KOREAN%20TV%20%26%20WEB%20Series/`,
+    isContainer: false,
   },
   cartoonTv: {
     id: "cartoonTv",
-    label: "Cartoon TV Series",
+    label: "Anime & Cartoon TV Series",
     server: "Server 10",
     url: `${DHAKA_SERVERS.server10}/DHAKA-FLIX-10/Anime%20%26%20Cartoon%20TV%20Series/`,
+    isContainer: true,
   },
   documentary: {
     id: "documentary",
-    label: "Documentary",
+    label: "Documentaries",
     server: "Server 10",
     url: `${DHAKA_SERVERS.server10}/DHAKA-FLIX-10/Documentary/`,
+    isContainer: false,
   },
   wwe: {
     id: "wwe",
     label: "WWE & AEW Wrestling",
     server: "Server 10",
     url: `${DHAKA_SERVERS.server10}/DHAKA-FLIX-10/WWE%20%26%20AEW%20Wrestling/`,
-  },
-  games: {
-    id: "games",
-    label: "PC Games",
-    server: "Server 8",
-    url: `${DHAKA_SERVERS.server8}/DHAKA-FLIX-8/PC%20Games/`,
-  },
-  software: {
-    id: "software",
-    label: "Software",
-    server: "Server 8",
-    url: `${DHAKA_SERVERS.server8}/DHAKA-FLIX-8/Software/`,
+    isContainer: true,
   },
 };
 
@@ -310,8 +302,8 @@ export function formatBytes(input: string | number): string {
 }
 
 export function parseFolderTitle(folderName: string) {
-  // 1. Look for release year in parentheses or brackets: e.g. (2024), [2024]
-  let yearMatch = folderName.match(/[\(\[]((?:19|20)\d{2})[\)\]]/);
+  // 1. Look for release year in parentheses or brackets: e.g. (2024), [2024], (TV Series 2021), (2020–2024)
+  let yearMatch = folderName.match(/[\(\[].*?((?:19|20)\d{2}).*?[\)\]]/) || folderName.match(/\b((?:19|20)\d{2})\b/);
   let yearIndex = yearMatch ? yearMatch.index : -1;
 
   // 2. Fallback: look for year preceded by delimiter and followed by quality tags or end
@@ -332,8 +324,12 @@ export function parseFolderTitle(folderName: string) {
     title = folderName.replace(/(?:[\s\._\-])(?:1080p|720p|2160p|4k|bluray|webrip|web-dl|amzn|nf).*/i, "");
   }
 
-  // Remove TV Series tag
-  title = title.replace(/[\(\[]?TV\s+(?:Mini\s+)?Series[^\)\]]*[\)\]]?/i, "").trim();
+  // Remove TV Series, Cartoon, Anime, Documentary tags and unclosed opening parens
+  title = title.replace(/[\(\[]?\s*TV[\s\-_]*(?:Documentary|Cartoon|Anime|Mini[\s\-_]*Series|Series)[^\)\]]*[\)\]]?/gi, "").trim();
+  title = title.replace(/[\(\[\{]\s*(?:PS4|PS3|PS5|PSP|XBOX\s*360|XBOX|Switch|Wii|3DS)[^\)\]\}]*[\)\]\}]/gi, "").trim();
+  title = title.replace(/\[(?:FitGirl|DODI|KaOs|ElAmigos|CODEX|CPY|RUNE|TENOKE|SKIDROW|FLT|RELOADED|MULTi\d*|Dual Audio|DUPLEX|CyB1K|iMARS|COMPLEX)[^\]]*\]/gi, "").trim();
+  title = title.replace(/(?:[\s\._\-])(?:DUPLEX|CyB1K|iMARS|COMPLEX|D33j4y)\b.*/i, "").trim();
+  title = title.replace(/[\(\[]\s*$/, "").trim();
 
   // Strip leading index numbering only if followed by punctuation (e.g. '001. ', '16 - ')
   // Preserves legitimate titles like '12 Angry Men', '28 Years Later', '10 Cloverfield Lane', '21 Jump Street'
@@ -346,14 +342,20 @@ export function parseFolderTitle(folderName: string) {
   title = title.replace(/\s*-(Part|Episode|The|Volume|Chapter)\b/i, ": $1");
   title = title.replace(/\s+-\s+/g, ": ");
   title = title.replace(/^\s*-\s*|\s*-\s*$/g, "");
+  title = title.replace(/[\(\[\-:,\s]+$/, "").trim();
   title = title.replace(/\s+/g, " ").trim();
 
   // Extract quality
   let quality = "720p";
   if (/2160p|4k/i.test(folderName)) quality = "4K UHD";
   else if (/1080p/i.test(folderName)) quality = "1080p";
+  else if (/480p/i.test(folderName)) quality = "480p";
+  else if (/FitGirl/i.test(folderName)) quality = "FitGirl Repack";
+  else if (/DODI/i.test(folderName)) quality = "DODI Repack";
   if (/Dual\s*Audio/i.test(folderName)) quality += " Dual Audio";
+  if (/Multi\s*Audio/i.test(folderName)) quality += " Multi Audio";
   if (/IMAX/i.test(folderName)) quality += " IMAX";
+  if (/3D/i.test(folderName)) quality = "3D Half-SBS";
 
   return { title: title || folderName, year: year || 2026, quality };
 }

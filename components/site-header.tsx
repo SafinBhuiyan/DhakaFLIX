@@ -47,6 +47,8 @@ export const CATEGORY_GROUPS: NavCategoryGroup[] = [
     name: "Series & TV",
     items: [
       { id: "tvSeries", label: "TV & Web Series", server: "Server 12", icon: Tv },
+      { id: "koreanTv", label: "Korean TV & Web Series", server: "Server 14", icon: Sparkles },
+      { id: "cartoonTv", label: "Anime & Cartoon TV Series", server: "Server 10", icon: Clapperboard },
     ],
   },
   {
@@ -64,7 +66,9 @@ export const CATEGORY_GROUPS: NavCategoryGroup[] = [
       { id: "imdb250", label: "IMDb Top-250 Movies", server: "Server 14", icon: Award },
       { id: "animation1080p", label: "Animation Movies (1080p)", server: "Server 14", icon: Clapperboard },
       { id: "animation", label: "Animation Movies", server: "Server 14", icon: Clapperboard },
-      { id: "foreign", label: "Foreign & Korean Movies", server: "Server 7", icon: Globe },
+      { id: "foreign", label: "Foreign Language Movies", server: "Server 7", icon: Globe },
+      { id: "documentary", label: "Documentaries", server: "Server 10", icon: Video },
+      { id: "wwe", label: "WWE & AEW Wrestling", server: "Server 10", icon: Flame },
     ],
   },
 ];
