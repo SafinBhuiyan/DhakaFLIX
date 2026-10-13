@@ -41,6 +41,47 @@ export function HeroSlider({ movie, movies, onPlayVlc, onSelectMovie }: HeroSlid
 
   const [bookmarked, setBookmarked] = useState(false);
 
+  // Mobile touch swipe gestures
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+    setIsHovered(true);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    setIsHovered(false);
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+
+    const endX = e.changedTouches[0].clientX;
+    const endY = e.changedTouches[0].clientY;
+    const deltaX = endX - touchStartXRef.current;
+    const deltaY = endY - touchStartYRef.current;
+
+    // Minimum swipe distance: 40px, and horizontal dominant
+    const minSwipeDistance = 40;
+    if (Math.abs(deltaX) >= minSwipeDistance && Math.abs(deltaX) > Math.abs(deltaY)) {
+      if (deltaX < 0) {
+        // Swipe Left -> Next Slide
+        setCurrentIndex((prev) => (prev + 1) % slideList.length);
+      } else {
+        // Swipe Right -> Previous Slide
+        setCurrentIndex((prev) => (prev === 0 ? slideList.length - 1 : prev - 1));
+      }
+    }
+
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+  };
+
+  const handleTouchCancel = () => {
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+    setIsHovered(false);
+  };
+
   if (slideList.length === 0) return null;
 
   const currentMovie = slideList[currentIndex] || slideList[0];
@@ -59,9 +100,12 @@ export function HeroSlider({ movie, movies, onPlayVlc, onSelectMovie }: HeroSlid
 
   return (
     <div
-      className="group relative w-full rounded-2xl overflow-hidden bg-[#18181b] border border-white/10 shadow-2xl min-h-[420px] sm:min-h-[420px] md:min-h-[480px] flex items-end select-none transition-all"
+      className="group relative w-full rounded-2xl overflow-hidden bg-[#18181b] border border-white/10 shadow-2xl min-h-[420px] sm:min-h-[420px] md:min-h-[480px] flex items-end select-none transition-all touch-pan-y"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchCancel}
     >
       {/* Background Backdrop Image or Placeholder */}
       {showPlaceholder ? (
@@ -86,14 +130,14 @@ export function HeroSlider({ movie, movies, onPlayVlc, onSelectMovie }: HeroSlid
           <button
             onClick={handlePrev}
             aria-label="Previous featured title"
-            className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white border border-white/10 opacity-0 group-hover:opacity-100 transition-all duration-200 active:scale-95 shadow-xl backdrop-blur-sm"
+            className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-full bg-black/60 hover:bg-black/80 text-white/90 hover:text-white border border-white/10 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200 active:scale-95 shadow-xl backdrop-blur-sm"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button
             onClick={handleNext}
             aria-label="Next featured title"
-            className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white border border-white/10 opacity-0 group-hover:opacity-100 transition-all duration-200 active:scale-95 shadow-xl backdrop-blur-sm"
+            className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-full bg-black/60 hover:bg-black/80 text-white/90 hover:text-white border border-white/10 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200 active:scale-95 shadow-xl backdrop-blur-sm"
           >
             <ChevronRight className="w-5 h-5" />
           </button>

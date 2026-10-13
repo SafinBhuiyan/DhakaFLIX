@@ -85,7 +85,7 @@ export function HomeMediaRail({
       {/* Horizontal Carousel Shelf */}
       <div
         ref={scrollRef}
-        className="flex gap-3 sm:gap-4 overflow-x-auto pb-3 pt-1 scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden overscroll-x-contain touch-pan-x"
+        className="flex gap-3 sm:gap-4 overflow-x-auto pb-3 pt-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {section.items.map((movie, idx) => (
           <div
