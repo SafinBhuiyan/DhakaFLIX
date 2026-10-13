@@ -92,6 +92,25 @@ export async function getCategoryCatalog(categoryKey: string): Promise<any | nul
  * Loads the curated Home payload (home.json: ~274KB).
  * Eliminates loading the 47MB snapshot when opening the Home page!
  */
+export const ALL_HOME_CATEGORIES = [
+  { id: "movies1080p", title: "Latest 1080p Releases" },
+  { id: "tvSeries", title: "Popular TV & Web Series" },
+  { id: "hindi", title: "Hindi & Bollywood" },
+  { id: "imdb250", title: "IMDb Top 250" },
+  { id: "southDubbed", title: "South Hindi Dubbed" },
+  { id: "southMovies", title: "South Indian Movies" },
+  { id: "kolkata", title: "Kolkata Bangla" },
+  { id: "animation1080p", title: "Animation (1080p)" },
+  { id: "foreign", title: "Foreign Language Cinema" },
+  { id: "movies720p", title: "English Movies (720p)" },
+  { id: "animation", title: "Animation Classics" },
+  { id: "movies3D", title: "3D Movies" },
+];
+
+/**
+ * Loads the curated Home payload.
+ * Guarantees all categories have curated rails rendered on the homepage.
+ */
 export async function getHomeCatalog(): Promise<any | null> {
   const cached = categoryCache.get("home");
   if (cached && Date.now() - cached.loadedAt < CACHE_TTL) {
@@ -102,11 +121,40 @@ export async function getHomeCatalog(): Promise<any | null> {
   try {
     const raw = await fs.promises.readFile(filePath, "utf-8");
     const data = JSON.parse(raw);
-    categoryCache.set("home", { data, loadedAt: Date.now() });
-    return data;
+    if (data?.sections && data.sections.length >= 10) {
+      categoryCache.set("home", { data, loadedAt: Date.now() });
+      return data;
+    }
   } catch {
-    return null;
+    // Proceed to dynamic category synthesis
   }
+
+  // Synthesize dynamically from modular category files if home.json is missing or partial
+  const sections: any[] = [];
+  for (const cat of ALL_HOME_CATEGORIES) {
+    const catData = await getCategoryCatalog(cat.id);
+    if (catData?.items?.length) {
+      sections.push({
+        id: cat.id,
+        title: cat.title,
+        total: catData.items.length,
+        items: catData.items.slice(0, 24),
+      });
+    }
+  }
+
+  const firstItems = sections[0]?.items || [];
+  const candidateSpotlight = firstItems.filter((i: any) => i.backdrop);
+  const spotlight = (candidateSpotlight.length >= 3 ? candidateSpotlight : firstItems).slice(0, 5);
+
+  const fallbackData = {
+    updatedAt: new Date().toISOString(),
+    spotlight,
+    sections,
+  };
+
+  categoryCache.set("home", { data: fallbackData, loadedAt: Date.now() });
+  return fallbackData;
 }
 
 /**

@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Play, Info, ChevronLeft, ChevronRight, Star, HardDrive } from "lucide-react";
+import { Info, ChevronLeft, ChevronRight, Star, Bookmark, Check } from "lucide-react";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 import { MoviePosterPlaceholder } from "@/components/movie-poster-placeholder";
 import { VlcIcon } from "@/components/vlc-icon";
+import { toggleWatchlist } from "@/lib/user-store";
 
 interface HeroSliderProps {
   movie?: CatalogMovie | null;
@@ -38,6 +39,8 @@ export function HeroSlider({ movie, movies, onPlayVlc, onSelectMovie }: HeroSlid
     setImgError(false);
   }, [currentIndex]);
 
+  const [bookmarked, setBookmarked] = useState(false);
+
   if (slideList.length === 0) return null;
 
   const currentMovie = slideList[currentIndex] || slideList[0];
@@ -53,8 +56,6 @@ export function HeroSlider({ movie, movies, onPlayVlc, onSelectMovie }: HeroSlid
     e.stopPropagation();
     setCurrentIndex((prev) => (prev + 1) % slideList.length);
   };
-
-  const streamUrl = currentMovie.videoUrl || currentMovie.serverUrl;
 
   return (
     <div
@@ -118,10 +119,6 @@ export function HeroSlider({ movie, movies, onPlayVlc, onSelectMovie }: HeroSlid
               {currentMovie.rating.toFixed(1)} IMDb
             </span>
           ) : null}
-          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-emerald-400 font-medium bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/20">
-            <HardDrive className="w-3 h-3" />
-            {currentMovie.sourceServer}
-          </span>
         </div>
 
         {/* Title */}
@@ -162,6 +159,34 @@ export function HeroSlider({ movie, movies, onPlayVlc, onSelectMovie }: HeroSlid
           >
             <Info className="w-4 h-4 text-neutral-300" />
             <span>Stream Details</span>
+          </button>
+
+          {/* Quick Watchlist Bookmark Button */}
+          <button
+            onClick={() => {
+              if (currentMovie) {
+                const isSaved = toggleWatchlist(currentMovie);
+                setBookmarked(isSaved);
+              }
+            }}
+            className={`flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl border transition active:scale-95 min-h-[42px] backdrop-blur-sm ${
+              bookmarked
+                ? "bg-red-600/20 text-[#e50914] border-red-500/40"
+                : "bg-white/10 hover:bg-white/15 text-white border-white/10"
+            }`}
+            title={bookmarked ? "Saved in Watchlist" : "Add to Watchlist"}
+          >
+            {bookmarked ? (
+              <>
+                <Check className="w-4 h-4 text-[#e50914]" />
+                <span className="text-xs sm:text-sm font-semibold hidden sm:inline">Saved</span>
+              </>
+            ) : (
+              <>
+                <Bookmark className="w-4 h-4" />
+                <span className="text-xs sm:text-sm font-semibold hidden sm:inline">Watchlist</span>
+              </>
+            )}
           </button>
         </div>
       </div>

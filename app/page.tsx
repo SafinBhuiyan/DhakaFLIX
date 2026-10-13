@@ -9,6 +9,14 @@ import { MovieGridCard } from "@/components/movie-grid-card";
 import { StreamModal } from "@/components/stream-modal";
 import { BackToTop } from "@/components/back-to-top";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
+import { ContinueWatchingRail } from "@/components/continue-watching-rail";
+import {
+  getWatchHistory,
+  addToWatchHistory,
+  removeFromWatchHistory,
+  clearWatchHistory,
+  WatchHistoryItem,
+} from "@/lib/user-store";
 import {
   Play,
   Loader2,
@@ -23,6 +31,22 @@ export default function Home() {
   // Home Specific State
   const [homeSpotlight, setHomeSpotlight] = useState<CatalogMovie[]>([]);
   const [homeSections, setHomeSections] = useState<HomeRailSection[]>([]);
+  const [watchHistory, setWatchHistory] = useState<WatchHistoryItem[]>([]);
+
+  // Load watch history on client mount
+  useEffect(() => {
+    setWatchHistory(getWatchHistory());
+  }, []);
+
+  const handleRemoveHistoryItem = (id: string) => {
+    const updated = removeFromWatchHistory(id);
+    setWatchHistory(updated);
+  };
+
+  const handleClearHistory = () => {
+    clearWatchHistory();
+    setWatchHistory([]);
+  };
 
   // Category Grid State (when browsing a single category)
   const [movies, setMovies] = useState<CatalogMovie[]>([]);
@@ -239,6 +263,32 @@ export default function Home() {
       }
     }
 
+    // Automatically record into user's client-side watch history
+    const matched =
+      selectedMovie ||
+      homeSpotlight.find((m) => m.title === title || (m.videoUrl && m.videoUrl === streamUrl)) ||
+      movies.find((m) => m.title === title || (m.videoUrl && m.videoUrl === streamUrl));
+
+    const isTvCandidate =
+      Boolean(matched?.category && /tv|series/i.test(matched.category)) ||
+      /tv|series|episode|season/i.test(title);
+
+    const updatedHistory = addToWatchHistory({
+      id: matched?.id || encodeURIComponent(validUrl),
+      title: matched?.title || title,
+      year: matched?.year,
+      quality: matched?.quality,
+      poster: matched?.poster,
+      backdrop: matched?.backdrop,
+      rating: matched?.rating,
+      serverUrl: matched?.serverUrl,
+      videoUrl: validUrl,
+      category: matched?.category,
+      sourceServer: matched?.sourceServer,
+      isSeries: isTvCandidate,
+    });
+    setWatchHistory(updatedHistory);
+
     const isMobile = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
 
@@ -413,6 +463,17 @@ export default function Home() {
                 />
               )}
 
+              {/* Dynamic Continue Watching Rail (Stored in client-side localStorage) */}
+              {watchHistory.length > 0 && (
+                <ContinueWatchingRail
+                  items={watchHistory}
+                  onPlayVlc={handlePlayVlc}
+                  onSelectMovie={setSelectedMovie}
+                  onRemoveItem={handleRemoveHistoryItem}
+                  onClearAll={handleClearHistory}
+                />
+              )}
+
               {/* Loading State for Home */}
               {loading ? (
                 <div className="p-20 text-center text-xs text-neutral-400 flex flex-col items-center justify-center gap-3 bg-[#131315] rounded-2xl border border-white/5">
@@ -420,8 +481,8 @@ export default function Home() {
                   <span className="text-sm">Loading authentic catalog from DhakaFlix storage cluster...</span>
                 </div>
               ) : (
-                /* Curated Horizontal Media Rails for each Section */
-                <div className="space-y-8">
+                /* Curated Horizontal Media Rails for all Categories */
+                <div className="space-y-6 sm:space-y-8">
                   {homeSections.map((section) => (
                     <HomeMediaRail
                       key={section.id}

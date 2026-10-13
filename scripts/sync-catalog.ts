@@ -567,14 +567,21 @@ async function syncCatalog(autoPush = false) {
   // 3. Rebuild Curated Home Catalog (home.json)
   console.log(`\nUpdating public/catalog/home.json with fresh releases...`);
   const homePath = path.join(catalogDir, "home.json");
-  const homeSections: Array<{ id: string; title: string; subtitle: string; server: string; items: any[] }> = [];
+  const homeSections: Array<{ id: string; title: string; subtitle?: string; server?: string; total?: number; items: any[] }> = [];
 
   const mainCategories = [
-    { id: "movies1080p", title: "Latest 1080p Releases", subtitle: "Crystal-clear high-speed BDIX streams" },
-    { id: "tvSeries", title: "Popular TV & Web Series", subtitle: "Full seasons and multi-episode collection" },
-    { id: "hindi", title: "Hindi & Bollywood Movies", subtitle: "New releases in high definition" },
-    { id: "southDubbed", title: "South Hindi Dubbed Blockbusters", subtitle: "Top South Indian cinema" },
-    { id: "animation1080p", title: "Animated Features", subtitle: "Family & animated blockbusters" },
+    { id: "movies1080p", title: "Latest 1080p Releases" },
+    { id: "tvSeries", title: "Popular TV & Web Series" },
+    { id: "hindi", title: "Hindi & Bollywood" },
+    { id: "imdb250", title: "IMDb Top 250" },
+    { id: "southDubbed", title: "South Hindi Dubbed" },
+    { id: "southMovies", title: "South Indian Movies" },
+    { id: "kolkata", title: "Kolkata Bangla" },
+    { id: "animation1080p", title: "Animation (1080p)" },
+    { id: "foreign", title: "Foreign Language Cinema" },
+    { id: "movies720p", title: "English Movies (720p)" },
+    { id: "animation", title: "Animation Classics" },
+    { id: "movies3D", title: "3D Movies" },
   ];
 
   for (const cat of mainCategories) {
@@ -585,8 +592,7 @@ async function syncCatalog(autoPush = false) {
         homeSections.push({
           id: cat.id,
           title: cat.title,
-          subtitle: cat.subtitle,
-          server: catData.server || "Server 14",
+          total: catData.items?.length || 0,
           items: (catData.items || []).slice(0, 24),
         });
       } catch {}

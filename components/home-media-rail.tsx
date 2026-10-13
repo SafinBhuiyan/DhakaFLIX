@@ -1,27 +1,17 @@
 "use client";
 
 import { useRef } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ArrowRight,
-  Film,
-  Tv,
-  Flame,
-  Award,
-  Sparkles,
-  Globe,
-  Clapperboard,
-  Video,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 import { MovieGridCard } from "@/components/movie-grid-card";
 
 export interface HomeRailSection {
   id: string;
-  label: string;
-  server: string;
-  total: number;
+  title?: string;
+  label?: string;
+  subtitle?: string;
+  server?: string;
+  total?: number;
   items: CatalogMovie[];
 }
 
@@ -32,31 +22,6 @@ interface HomeMediaRailProps {
   onPlayVlc: (streamUrl: string, title: string) => void;
 }
 
-function getSectionIcon(id: string) {
-  switch (id) {
-    case "movies1080p":
-      return Film;
-    case "tvSeries":
-      return Tv;
-    case "hindi":
-      return Flame;
-    case "imdb250":
-      return Award;
-    case "southDubbed":
-    case "southMovies":
-      return Sparkles;
-    case "animation":
-    case "animation1080p":
-      return Clapperboard;
-    case "foreign":
-      return Globe;
-    case "movies720p":
-      return Video;
-    default:
-      return Film;
-  }
-}
-
 export function HomeMediaRail({
   section,
   onSelectCategory,
@@ -64,7 +29,7 @@ export function HomeMediaRail({
   onPlayVlc,
 }: HomeMediaRailProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const Icon = getSectionIcon(section.id);
+  const sectionTitle = section.title || section.label || "Featured Collection";
 
   const handleScroll = (direction: "left" | "right") => {
     if (!scrollRef.current) return;
@@ -75,44 +40,43 @@ export function HomeMediaRail({
   if (!section.items || section.items.length === 0) return null;
 
   return (
-    <section className="space-y-3.5 pt-2">
+    <section id={`rail-${section.id}`} className="space-y-2.5 pt-1 scroll-mt-24">
       {/* Section Header */}
-      <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-        <div className="flex items-center gap-2.5">
-          <span className="w-1.5 h-4 bg-[#e50914] rounded-sm shrink-0" />
-          <div className="flex items-baseline gap-2 flex-wrap">
-            <h2 className="text-sm sm:text-base font-bold uppercase tracking-wider text-white">
-              {section.label}
-            </h2>
-          </div>
+      <div className="flex items-center justify-between pb-1">
+        <div className="flex items-center gap-2">
+          <span className="w-1 h-4 bg-[#e50914] rounded-sm shrink-0" />
+          <h2
+            onClick={() => onSelectCategory(section.id)}
+            className="text-base sm:text-lg font-bold tracking-tight text-white hover:text-[#e50914] cursor-pointer transition-colors"
+          >
+            {sectionTitle}
+          </h2>
         </div>
 
         {/* Right Header Navigation & Actions */}
         <div className="flex items-center gap-2">
-          {/* "Explore All" Category Switch Button */}
           <button
             onClick={() => onSelectCategory(section.id)}
-            className="group inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-400 hover:text-white px-2.5 py-1 rounded-lg hover:bg-white/5 transition"
+            className="group inline-flex items-center gap-1 text-xs font-semibold text-neutral-400 hover:text-white px-2 py-1 rounded-md hover:bg-white/5 transition"
           >
-            <span>More</span>
+            <span>Explore All</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform text-[#e50914]" />
           </button>
 
-          {/* Left/Right Carousel Controls (Desktop) */}
-          <div className="hidden sm:flex items-center gap-1 pl-2 border-l border-white/10">
+          <div className="hidden sm:flex items-center gap-1 pl-1">
             <button
               onClick={() => handleScroll("left")}
-              aria-label={`Scroll ${section.label} left`}
-              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-neutral-300 hover:text-white transition active:scale-95 border border-white/5"
+              aria-label={`Scroll ${sectionTitle} left`}
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-neutral-300 hover:text-white transition active:scale-95"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => handleScroll("right")}
-              aria-label={`Scroll ${section.label} right`}
-              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-neutral-300 hover:text-white transition active:scale-95 border border-white/5"
+              aria-label={`Scroll ${sectionTitle} right`}
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-neutral-300 hover:text-white transition active:scale-95"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -147,10 +111,10 @@ export function HomeMediaRail({
             </div>
             <div>
               <span className="block text-xs font-bold text-white group-hover:text-red-400 transition">
-                View All {section.total}+
+                View All {section.total || ""}+
               </span>
               <span className="text-[11px] text-neutral-400 mt-0.5 block line-clamp-1">
-                in {section.label}
+                in {sectionTitle}
               </span>
             </div>
           </button>

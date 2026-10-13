@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Star } from "lucide-react";
+import { Star, Info } from "lucide-react";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 import { MoviePosterPlaceholder } from "@/components/movie-poster-placeholder";
+import { VlcIcon } from "@/components/vlc-icon";
 
 interface MovieGridCardProps {
   movie: CatalogMovie;
@@ -11,7 +12,7 @@ interface MovieGridCardProps {
   onSelectMovie: (movie: CatalogMovie) => void;
 }
 
-export function MovieGridCard({ movie, onSelectMovie }: MovieGridCardProps) {
+export function MovieGridCard({ movie, onSelectMovie, onPlayVlc }: MovieGridCardProps) {
   const [imgError, setImgError] = useState(false);
   const [fallbackAttempted, setFallbackAttempted] = useState(false);
 
@@ -23,6 +24,8 @@ export function MovieGridCard({ movie, onSelectMovie }: MovieGridCardProps) {
   };
 
   const showPlaceholder = !movie.poster || imgError;
+  const streamUrl = movie.videoUrl || movie.serverUrl;
+  const canQuickPlay = Boolean(onPlayVlc && streamUrl && !streamUrl.endsWith("/"));
 
   return (
     <div
@@ -74,8 +77,31 @@ export function MovieGridCard({ movie, onSelectMovie }: MovieGridCardProps) {
           </span>
         </div>
 
-        {/* Subtle darkening hover tint */}
-        <div className="absolute inset-0 bg-black/15 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+        {/* Interactive Hover Action Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end p-2.5 justify-between z-10">
+          {canQuickPlay ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onPlayVlc && streamUrl) {
+                  onPlayVlc(streamUrl, movie.title);
+                }
+              }}
+              title="Quick Play in VLC"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#e50914] hover:bg-red-700 text-white text-[11px] font-bold shadow-lg transition active:scale-90"
+            >
+              <VlcIcon className="w-3.5 h-3.5 fill-white" />
+              <span>Play</span>
+            </button>
+          ) : (
+            <div />
+          )}
+
+          <div className="flex items-center gap-1 text-[11px] font-semibold text-neutral-300 hover:text-white bg-black/60 px-2 py-1 rounded backdrop-blur-sm">
+            <Info className="w-3 h-3" />
+            <span>Details</span>
+          </div>
+        </div>
       </div>
 
       {/* Info Section Below Poster */}
