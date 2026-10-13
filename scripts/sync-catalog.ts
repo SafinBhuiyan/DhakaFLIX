@@ -185,7 +185,7 @@ async function fetchH5aiDirectory(urlStr: string): Promise<H5aiItem[]> {
 
 function parseFolderTitle(folderName: string) {
   const currentYear = new Date().getFullYear();
-  const yearMatch = folderName.match(/\(((?:19|20)\d{2})\)/);
+  const yearMatch = folderName.match(/\(((?:19|20)\d{2})\)/) || folderName.match(/\b((?:19|20)\d{2})\b/);
   const year = yearMatch ? parseInt(yearMatch[1], 10) : currentYear;
 
   let title = folderName;
@@ -203,6 +203,7 @@ function parseFolderTitle(folderName: string) {
   if (/1080p/i.test(folderName)) quality = "1080p";
   else if (/2160p|4k/i.test(folderName)) quality = "4K UHD";
   if (/Dual\s*Audio/i.test(folderName)) quality += " Dual Audio";
+  if (/Multi\s*Audio/i.test(folderName)) quality += " Multi Audio";
   if (/IMAX/i.test(folderName)) quality += " IMAX";
   if (/3D/i.test(folderName)) quality = "3D Half-SBS";
 
@@ -307,6 +308,11 @@ async function scrapeTvSeasons(folderUrl: string) {
   const directVideos = items.filter((i) => !i.isFolder && VIDEO_EXTENSIONS.test(i.name));
 
   const targetFolders = seasonFolders.length > 0 ? seasonFolders : otherFolders;
+  targetFolders.sort((a, b) => {
+    const numA = parseInt(a.name.match(/\d+/)?.[0] || "0", 10);
+    const numB = parseInt(b.name.match(/\d+/)?.[0] || "0", 10);
+    return numA - numB;
+  });
 
   if (targetFolders.length > 0) {
     const seasons = [];
@@ -505,17 +511,25 @@ async function syncCatalog(autoPush = false) {
       if (item.rawName) seenTvNames.add(item.rawName.toLowerCase().trim());
     }
 
-    const tvBuckets = [
-      "TV Series ★  0  —  9/",
-      "TV Series ♥  A  —  L/",
-      "TV Series ♦  M  —  R/",
-      "TV Series ♦  S  —  Z/",
+    const tvSources = [
+      ...[
+        "TV Series ★  0  —  9/",
+        "TV Series ♥  A  —  L/",
+        "TV Series ♦  M  —  R/",
+        "TV Series ♦  S  —  Z/",
+      ].map((bucket) => ({
+        url: `${DHAKA_SERVERS.server12}/DHAKA-FLIX-12/TV-WEB-Series/${encodeURIComponent(bucket)}/`,
+        server: "Server 12",
+      })),
+      {
+        url: `${DHAKA_SERVERS.server14}/DHAKA-FLIX-14/KOREAN%20TV%20%26%20WEB%20Series/`,
+        server: "Server 14",
+      },
     ];
 
     let newShows = 0;
-    for (const bucket of tvBuckets) {
-      const bucketUrl = `${DHAKA_SERVERS.server12}/DHAKA-FLIX-12/TV-WEB-Series/${encodeURIComponent(bucket)}/`;
-      const folders = await fetchH5aiDirectory(bucketUrl);
+    for (const source of tvSources) {
+      const folders = await fetchH5aiDirectory(source.url);
 
       for (const f of folders) {
         if (!f.isFolder) continue;
@@ -534,7 +548,7 @@ async function syncCatalog(autoPush = false) {
             year,
             quality,
             serverUrl: f.href,
-            sourceServer: "Server 12",
+            sourceServer: source.server,
             category: "TV & Web Series",
             poster: tmdb.poster || `${f.href}a_AL_.jpg`,
             backdrop: tmdb.backdrop,
@@ -549,7 +563,7 @@ async function syncCatalog(autoPush = false) {
           tvData.items.unshift(newTvItem);
           seenTvUrls.add(normUrl);
           newShows++;
-          console.log(`   + Added TV Series: "${title}" (${seasons.length} seasons)`);
+          console.log(`   + Added TV Series: "${title}" (${seasons.length} seasons) from ${source.server}`);
         }
       }
     }
@@ -557,6 +571,10 @@ async function syncCatalog(autoPush = false) {
     if (newShows > 0) {
       tvData.total = tvData.items.length;
       fs.writeFileSync(tvCatalogPath, JSON.stringify(tvData), "utf-8");
+      const dataTvPath = path.join(process.cwd(), "data", "catalog", "tvSeries.json");
+      if (fs.existsSync(dataTvPath)) {
+        fs.writeFileSync(dataTvPath, JSON.stringify(tvData), "utf-8");
+      }
       totalNewTitles += newShows;
       console.log(`  ✓ Saved ${newShows} new TV series to tvSeries.json.`);
     } else {
@@ -610,6 +628,10 @@ async function syncCatalog(autoPush = false) {
   };
 
   fs.writeFileSync(homePath, JSON.stringify(homeData), "utf-8");
+  const dataHomePath = path.join(process.cwd(), "data", "catalog", "home.json");
+  if (fs.existsSync(dataHomePath)) {
+    fs.writeFileSync(dataHomePath, JSON.stringify(homeData), "utf-8");
+  }
   console.log("✓ Updated public/catalog/home.json successfully.");
 
   // 4. Git Auto-Commit & Push (if enabled)
