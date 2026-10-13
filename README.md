@@ -124,7 +124,7 @@ DhakaFLIX/
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/DhakaFLIX.git
+git clone https://github.com/SafinBhuiyan/DhakaFLIX.git
 cd DhakaFLIX
 ```
 
