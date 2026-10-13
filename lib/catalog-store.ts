@@ -79,7 +79,7 @@ export async function getCategoryCatalog(categoryKey: string): Promise<any | nul
     const data = JSON.parse(raw);
     categoryCache.set(categoryKey, { data, loadedAt: Date.now() });
     return data;
-  } catch (err) {
+  } catch {
     // If specific category is not found, fallback to movies1080p
     if (categoryKey !== "movies1080p") {
       return getCategoryCatalog("movies1080p");

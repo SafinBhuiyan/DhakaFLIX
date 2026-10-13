@@ -14,13 +14,6 @@ import {
   Loader2,
   X,
   ArrowLeft,
-  Sparkles,
-  Film,
-  Tv,
-  Flame,
-  Award,
-  Globe,
-  Clapperboard,
 } from "lucide-react";
 
 export default function Home() {
@@ -322,19 +315,6 @@ export default function Home() {
     }
   };
 
-  const currentLoading = isSearching ? searching : loading;
-
-  // Quick navigation chips for Home page
-  const homeQuickChips = [
-    { id: "movies1080p", label: "1080p Movies", icon: Film },
-    { id: "tvSeries", label: "TV Series", icon: Tv },
-    { id: "hindi", label: "Hindi Movies", icon: Flame },
-    { id: "imdb250", label: "IMDb Top 250", icon: Award },
-    { id: "southDubbed", label: "South Dubbed", icon: Sparkles },
-    { id: "animation1080p", label: "Animation", icon: Clapperboard },
-    { id: "foreign", label: "Foreign & Korean", icon: Globe },
-  ];
-
   return (
     <div className="min-h-screen bg-[#0e0e0f] text-neutral-200 flex flex-col font-sans">
       {/* 1. Top Header with Netflix-Style Navigation & Live Search Suggestions */}
@@ -432,27 +412,6 @@ export default function Home() {
                   onSelectMovie={setSelectedMovie}
                 />
               )}
-
-              {/* Quick Category Jump Chips
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <span className="text-xs font-semibold text-neutral-400 whitespace-nowrap pr-1 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#e50914]" />
-                  Jump to:
-                </span>
-                {homeQuickChips.map((chip) => {
-                  const ChipIcon = chip.icon;
-                  return (
-                    <button
-                      key={chip.id}
-                      onClick={() => handleSelectCategory(chip.id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.04] hover:bg-white/[0.09] text-neutral-300 hover:text-white border border-white/5 hover:border-white/10 transition whitespace-nowrap active:scale-95"
-                    >
-                      <ChipIcon className="w-3.5 h-3.5 text-neutral-400" />
-                      <span>{chip.label}</span>
-                    </button>
-                  );
-                })}
-              </div> */}
 
               {/* Loading State for Home */}
               {loading ? (

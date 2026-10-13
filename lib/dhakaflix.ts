@@ -930,18 +930,6 @@ export interface SnapshotCatalogItem {
   videoFileSize?: string;
 }
 
-// Module-level caches for 0ms lookups across the 35,452 item catalog
-let allSnapshotItemsCache: SnapshotCatalogItem[] | null = null;
-const snapshotByUrlCache = new Map<string, SnapshotCatalogItem>();
-const snapshotByCleanTitleCache = new Map<string, SnapshotCatalogItem>();
-
-function normalizeUrlKey(u: string): string {
-  try {
-    return decodeURIComponent(u).toLowerCase().replace(/\/+$/, "");
-  } catch {
-    return u.toLowerCase().replace(/\/+$/, "");
-  }
-}
 
 export function getAllSnapshotItems(): SnapshotCatalogItem[] {
   return [];

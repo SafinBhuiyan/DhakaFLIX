@@ -1,6 +1,7 @@
 {
-  "name": "MovieFlix",
-  "version": "0.0.1",
+  "name": "dhakaflix",
+  "version": "1.0.0",
+  "description": "High-performance streaming web application and automated catalog indexer for high-speed BDIX media clusters.",
   "type": "module",
   "private": true,
   "scripts": {
@@ -10,7 +11,7 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "build:snapshot": "tsx scripts/build-snapshot.ts",
+    "sync": "tsx scripts/sync-catalog.ts",
     "sync:catalog": "tsx scripts/sync-catalog.ts",
     "sync:daily": "tsx scripts/sync-catalog.ts --push",
     "sync:daemon": "node scripts/sync-daemon.mjs"
