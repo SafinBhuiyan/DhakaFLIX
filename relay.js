@@ -91,7 +91,8 @@ function streamVideo(targetUrl, req, res) {
           'Accept-Ranges': 'bytes',
           'Content-Type': mimeType,
           'Content-Disposition': disposition,
-          'Cache-Control': 'public, max-age=3600',
+          'Cache-Control': 'no-transform, public, max-age=86400',
+          'X-Accel-Buffering': 'no',
         };
 
         if (upstreamRes.headers['content-length']) {
