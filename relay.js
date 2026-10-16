@@ -83,11 +83,14 @@ function streamVideo(targetUrl, req, res) {
           else mimeType = 'video/mp4';
         }
 
+        const isDownload = req.url.includes('download=1');
+        const disposition = isDownload ? 'attachment' : 'inline';
+
         const responseHeaders = {
           'Access-Control-Allow-Origin': '*',
           'Accept-Ranges': 'bytes',
           'Content-Type': mimeType,
-          'Content-Disposition': 'inline',
+          'Content-Disposition': disposition,
           'Cache-Control': 'public, max-age=3600',
         };
 
@@ -131,6 +134,8 @@ function streamVideo(targetUrl, req, res) {
   }
 }
 
+const net = require('net');
+
 // Reverse-proxy frontend requests to Next.js on 192.168.10.112:3000
 function proxyToNextJs(req, res) {
   const options = {
@@ -144,7 +149,7 @@ function proxyToNextJs(req, res) {
       'x-forwarded-host': req.headers.host || '',
       'x-forwarded-proto': req.headers['x-forwarded-proto'] || 'https',
     },
-    timeout: 15000,
+    timeout: 30000,
   };
 
   const proxyReq = http.request(options, (proxyRes) => {
@@ -167,7 +172,15 @@ function proxyToNextJs(req, res) {
     }
   });
 
-  req.pipe(proxyReq);
+  req.on('close', () => {
+    proxyReq.destroy();
+  });
+
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    proxyReq.end();
+  } else {
+    req.pipe(proxyReq);
+  }
 }
 
 const server = http.createServer((req, res) => {
@@ -196,14 +209,39 @@ const server = http.createServer((req, res) => {
     if (!targetUrl) {
       res.writeHead(400, { 'Content-Type': 'text/plain' });
       res.end('Missing url parameter');
-      return;
+    } else {
+      streamVideo(targetUrl, req, res);
     }
-    streamVideo(targetUrl, req, res);
     return;
   }
 
   // Everything else: proxy to Next.js so the full website works on Mobile Data!
   proxyToNextJs(req, res);
+});
+
+// Forward WebSocket requests (HMR, live updates) to Next.js
+server.on('upgrade', (req, clientSocket, head) => {
+  const proxySocket = net.connect(NEXTJS_PORT, NEXTJS_HOST, () => {
+    proxySocket.write(
+      `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n` +
+      Object.entries(req.headers)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join('\r\n') +
+      '\r\n\r\n'
+    );
+    if (head && head.length > 0) {
+      proxySocket.write(head);
+    }
+    proxySocket.pipe(clientSocket);
+    clientSocket.pipe(proxySocket);
+  });
+
+  proxySocket.on('error', () => {
+    clientSocket.destroy();
+  });
+  clientSocket.on('error', () => {
+    proxySocket.destroy();
+  });
 });
 
 server.listen(PORT, '0.0.0.0', () => {

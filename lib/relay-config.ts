@@ -190,22 +190,24 @@ export function formatStreamUrl(streamUrl: string, forceRelay?: boolean): string
   }
 
   // Extract clean file name with extension
-  let fileName = "video.mp4";
+  let ext = "mp4";
+  const lower = canonicalUrl.toLowerCase();
+  if (lower.includes(".mkv")) ext = "mkv";
+  else if (lower.includes(".webm")) ext = "webm";
+  else if (lower.includes(".avi")) ext = "avi";
+
+  let baseName = "video";
   try {
-    const cleanUrl = canonicalUrl.split("?")[0];
-    const lastSlash = cleanUrl.lastIndexOf("/");
-    if (lastSlash !== -1) {
-      const extracted = decodeURIComponent(cleanUrl.substring(lastSlash + 1));
-      if (extracted && extracted.trim()) {
-        fileName = extracted.trim();
-      }
-    }
+    const rawName = canonicalUrl.split("?")[0].split("/").pop() || "";
+    const clean = decodeURIComponent(rawName)
+      .replace(/\.[^/.]+$/, "") // strip extension
+      .replace(/[^a-zA-Z0-9_\-]/g, "_") // clean out spaces, parentheses, brackets
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .substring(0, 60);
+    if (clean) baseName = clean;
   } catch {}
 
-  const sanitizedFileName = fileName
-    .replace(/ /g, "%20")
-    .replace(/\[/g, "%5B")
-    .replace(/\]/g, "%5D");
-
-  return `${relay}/stream/${sanitizedFileName}?url=${encodeURIComponent(canonicalUrl)}`;
+  const safeFileName = `${baseName}.${ext}`;
+  return `${relay}/stream/${safeFileName}?url=${encodeURIComponent(canonicalUrl)}`;
 }

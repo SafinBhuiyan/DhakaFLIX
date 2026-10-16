@@ -653,6 +653,25 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
                 )}
               </button>
 
+              {/* Direct Download Video Button */}
+              {primaryStreamUrl && (!isSeries || activeEpisode) && (
+                <a
+                  href={`${getFormattedUrl(primaryStreamUrl)}${isEffectiveRelay ? "&download=1" : ""}`}
+                  download
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 sm:px-6 py-3.5 rounded-xl bg-neutral-800/90 hover:bg-neutral-700 text-white text-sm font-bold border border-white/10 hover:border-white/20 transition min-h-[48px] active:scale-95 shadow-lg shadow-black/40 cursor-pointer shrink-0"
+                  title={
+                    isSeries && activeEpisode
+                      ? `Download S${activeSeasonNumber}:E${activeEpisode.episodeNumber} (${activeEpisode.fileSize || "Video"})`
+                      : `Download ${movie.title} directly`
+                  }
+                >
+                  <Download className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="font-bold tracking-wide">
+                    {isSeries && activeEpisode ? `Download E${activeEpisode.episodeNumber}` : "Download"}
+                  </span>
+                </a>
+              )}
+
               {/* Secondary Actions Bar */}
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 {/* Watchlist Toggle Button */}
@@ -938,6 +957,17 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
                             <span>Play</span>
                           </button>
 
+                          {/* Direct Video Download */}
+                          <a
+                            href={`${getFormattedUrl(ep.streamUrl)}${isEffectiveRelay ? "&download=1" : ""}`}
+                            download
+                            onClick={(e) => e.stopPropagation()}
+                            className="p-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 transition flex items-center justify-center min-w-[30px] min-h-[30px] cursor-pointer"
+                            title={`Download Episode ${ep.episodeNumber} (${ep.fileSize || "Video"})`}
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </a>
+
                           {/* Download M3U */}
                           <a
                             href={`/api/vlc/playlist?url=${encodeURIComponent(getFormattedUrl(ep.streamUrl))}&title=${encodeURIComponent(`${movie.title} S${activeSeasonNumber}E${ep.episodeNumber} - ${ep.title}`)}`}
@@ -946,7 +976,7 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
                             className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition flex items-center justify-center min-w-[30px] min-h-[30px] cursor-pointer"
                             title={`Download .m3u playlist for Episode ${ep.episodeNumber}`}
                           >
-                            <Download className="w-3.5 h-3.5" />
+                            <ListVideo className="w-3.5 h-3.5" />
                           </a>
 
                           {/* Copy Link */}

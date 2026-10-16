@@ -424,23 +424,35 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
             <button
               onClick={() => {
                 if (isSeries && !activeEpisode) {
-                  if (movie.serverUrl) window.open(movie.serverUrl, "_blank");
                   return;
                 }
                 onPlayVlc(primaryStreamUrl, primaryTitle);
               }}
               className="group flex-1 flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-orange-950/40 active:scale-95 transition min-h-[42px] cursor-pointer"
-              title={isSeries ? (activeEpisode ? `Stream S${activeSeasonNumber}:E${activeEpisode.episodeNumber} directly in VLC` : "Browse Series Directory on BDIX") : "Stream directly in VLC (Mobile & Desktop)"}
+              title={isSeries ? (activeEpisode ? `Stream S${activeSeasonNumber}:E${activeEpisode.episodeNumber} directly in VLC` : "Select an episode below to stream") : "Stream directly in VLC (Mobile & Desktop)"}
             >
               <VlcIcon size={18} fill="#FFFFFF" className="shrink-0 group-hover:scale-105 transition-transform" />
               <span>
                 {isSeries
                   ? activeEpisode
                     ? `Play E${activeEpisode.episodeNumber} in VLC`
-                    : "Browse Series Files"
+                    : "Select Episode Below"
                   : "Play in VLC"}
               </span>
             </button>
+
+            {/* Direct Download Video Button */}
+            {primaryStreamUrl && (!isSeries || activeEpisode) && (
+              <a
+                href={`${getFormattedUrl(primaryStreamUrl)}${isEffectiveRelay ? "&download=1" : ""}`}
+                download
+                className="flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-neutral-800/90 hover:bg-neutral-700 text-white text-xs sm:text-sm font-bold border border-white/10 hover:border-white/20 transition min-h-[42px] active:scale-95 shadow-md cursor-pointer shrink-0"
+                title={isSeries && activeEpisode ? `Download Episode ${activeEpisode.episodeNumber}` : `Download ${movie.title} directly`}
+              >
+                <Download className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{isSeries && activeEpisode ? `Download E${activeEpisode.episodeNumber}` : "Download"}</span>
+              </a>
+            )}
 
             {/* If TV Series: Play Season Playlist button */}
             {isSeries && currentSeason && (
@@ -704,6 +716,17 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                               <span>Play</span>
                             </button>
 
+                            {/* Direct Video Download */}
+                            <a
+                              href={`${getFormattedUrl(ep.streamUrl)}${isEffectiveRelay ? "&download=1" : ""}`}
+                              download
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 transition flex items-center justify-center min-w-[28px] min-h-[28px] cursor-pointer"
+                              title={`Download Episode ${ep.episodeNumber} (${ep.fileSize || "Video"})`}
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </a>
+
                             {/* Download M3U for this episode */}
                             <a
                               href={`/api/vlc/playlist?url=${encodeURIComponent(getFormattedUrl(ep.streamUrl))}&title=${encodeURIComponent(`${movie.title} S${activeSeasonNumber}E${ep.episodeNumber} - ${ep.title}`)}`}
@@ -712,7 +735,7 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                               className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition flex items-center justify-center min-w-[28px] min-h-[28px] cursor-pointer"
                               title={`Download .m3u playlist for Episode ${ep.episodeNumber}`}
                             >
-                              <Download className="w-3.5 h-3.5" />
+                              <ListVideo className="w-3.5 h-3.5" />
                             </a>
 
                             {/* Copy Link */}
@@ -770,13 +793,23 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                       </p>
                     </div>
 
-                    <button
-                      onClick={() => onPlayVlc(stream.streamUrl, movie.title)}
-                      className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-[11px] font-bold transition active:scale-95 cursor-pointer"
-                    >
-                      <VlcIcon size={12} fill="#FFFFFF" />
-                      <span>Play</span>
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <a
+                        href={`${getFormattedUrl(stream.streamUrl)}${isEffectiveRelay ? "&download=1" : ""}`}
+                        download
+                        className="p-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 transition flex items-center justify-center min-w-[28px] min-h-[28px] cursor-pointer"
+                        title={`Download ${stream.fileName || movie.title}`}
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </a>
+                      <button
+                        onClick={() => onPlayVlc(stream.streamUrl, movie.title)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-[11px] font-bold transition active:scale-95 cursor-pointer"
+                      >
+                        <VlcIcon size={12} fill="#FFFFFF" />
+                        <span>Play</span>
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

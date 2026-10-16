@@ -11,7 +11,13 @@ const nextConfig: NextConfig = {
       { protocol: "http", hostname: "172.16.50.14" }
     ],
   },
-  allowedDevOrigins: ["192.168.10.112", "localhost", "127.0.0.1"],
+  allowedDevOrigins: [
+    "192.168.10.112",
+    "localhost",
+    "127.0.0.1",
+    "*.trycloudflare.com",
+    "pole-mean-rent-pursuit.trycloudflare.com"
+  ],
   outputFileTracingIncludes: {
     "/api/**/*": ["./public/catalog/**/*"],
   },
