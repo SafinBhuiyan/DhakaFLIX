@@ -2,7 +2,7 @@
 // Intelligently detects whether user has direct BDIX access (Home Wi-Fi)
 // or requires Helper Relay (Mobile Data / Off-network).
 
-const DEFAULT_RELAY_URL = process.env.NEXT_PUBLIC_HELPER_RELAY_URL || "";
+const DEFAULT_RELAY_URL = "https://pole-mean-rent-pursuit.trycloudflare.com";
 const STORAGE_KEY_URL = "dhakaflix_helper_url";
 const STORAGE_KEY_MODE = "dhakaflix_network_mode"; // "auto" | "direct" | "relay"
 
@@ -43,12 +43,10 @@ export function getRelayUrl(): string {
     const custom = localStorage.getItem(STORAGE_KEY_URL);
     if (custom && custom.trim()) {
       const clean = custom.trim().replace(/\/+$/, "");
-      // Ephemeral trycloudflare tunnels expire; purge them automatically
-      if (clean.includes("trycloudflare.com")) {
-        localStorage.removeItem(STORAGE_KEY_URL);
-      } else {
+      if (clean === DEFAULT_RELAY_URL) {
         return clean;
       }
+      localStorage.removeItem(STORAGE_KEY_URL);
     }
   }
   return DEFAULT_RELAY_URL.replace(/\/+$/, "");

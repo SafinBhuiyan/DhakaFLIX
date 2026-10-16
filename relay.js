@@ -2,6 +2,8 @@ const http = require('http');
 const https = require('https');
 
 const PORT = 8080;
+const NEXTJS_HOST = '192.168.10.112';
+const NEXTJS_PORT = 3000;
 
 // High-performance persistent connection agent (eliminates TCP handshake delay on seeks)
 const httpAgent = new http.Agent({
@@ -59,7 +61,6 @@ function streamVideo(targetUrl, req, res) {
       forwardHeaders.range = req.headers.range;
     }
 
-    // Disable Nagle's algorithm for instant chunk transmission
     if (req.socket) req.socket.setNoDelay(true);
     if (res.socket) res.socket.setNoDelay(true);
 
@@ -130,6 +131,45 @@ function streamVideo(targetUrl, req, res) {
   }
 }
 
+// Reverse-proxy frontend requests to Next.js on 192.168.10.112:3000
+function proxyToNextJs(req, res) {
+  const options = {
+    hostname: NEXTJS_HOST,
+    port: NEXTJS_PORT,
+    path: req.url,
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: `${NEXTJS_HOST}:${NEXTJS_PORT}`,
+      'x-forwarded-host': req.headers.host || '',
+      'x-forwarded-proto': req.headers['x-forwarded-proto'] || 'https',
+    },
+    timeout: 15000,
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on('error', (err) => {
+    if (!res.headersSent) {
+      res.writeHead(502, { 'Content-Type': 'text/plain' });
+      res.end(`DhakaFLIX Frontend (${NEXTJS_HOST}:${NEXTJS_PORT}) is not reachable: ${err.message}`);
+    }
+  });
+
+  proxyReq.on('timeout', () => {
+    proxyReq.destroy();
+    if (!res.headersSent) {
+      res.writeHead(504, { 'Content-Type': 'text/plain' });
+      res.end('DhakaFLIX Frontend request timed out');
+    }
+  });
+
+  req.pipe(proxyReq);
+}
+
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
@@ -144,7 +184,7 @@ const server = http.createServer((req, res) => {
   const reqUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
 
   // Health check
-  if (reqUrl.pathname === '/' || reqUrl.pathname === '/health') {
+  if (reqUrl.pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'online', message: 'DhakaFLIX Relay is running!' }));
     return;
@@ -162,10 +202,10 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  res.writeHead(404, { 'Content-Type': 'text/plain' });
-  res.end('Not Found');
+  // Everything else: proxy to Next.js so the full website works on Mobile Data!
+  proxyToNextJs(req, res);
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log('🚀 DhakaFLIX High-Speed Relay running on port ' + PORT);
+  console.log('🚀 DhakaFLIX Unified Web & Streaming Relay running on port ' + PORT);
 });
