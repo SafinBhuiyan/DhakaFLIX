@@ -15,13 +15,21 @@ import {
   ListVideo,
   Play,
   Folder,
+  Zap,
+  Shield,
 } from "lucide-react";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 import { DhakaFlixStream, DhakaEpisode, DhakaSeason } from "@/lib/dhakaflix";
 import { MoviePosterPlaceholder } from "@/components/movie-poster-placeholder";
 import { VlcIcon } from "@/components/vlc-icon";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
-import { formatStreamUrl } from "@/lib/relay-config";
+import {
+  formatStreamUrl,
+  getNetworkMode,
+  setNetworkMode,
+  checkDirectBdixAccess,
+  NetworkMode,
+} from "@/lib/relay-config";
 
 function YoutubeIcon({ className = "w-4 h-4", ...props }: React.SVGProps<SVGSVGElement>) {
   return (
@@ -62,6 +70,24 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
     youtubeUrl?: string;
   } | null>(null);
 
+  // Smart Network Mode State (Auto, Direct BDIX, or Relay)
+  const [networkMode, setNetworkModeState] = useState<NetworkMode>("auto");
+  const [isBdixDirect, setIsBdixDirect] = useState<boolean>(true);
+
+  const toggleNetworkMode = () => {
+    const next: NetworkMode =
+      networkMode === "auto" ? "direct" : networkMode === "direct" ? "relay" : "auto";
+    setNetworkMode(next);
+    setNetworkModeState(next);
+  };
+
+  const isEffectiveRelay =
+    networkMode === "relay" || (networkMode === "auto" && !isBdixDirect);
+
+  const getFormattedUrl = (url: string) => {
+    return formatStreamUrl(url, isEffectiveRelay);
+  };
+
   // Close on Escape key (trailer first, then modal)
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -88,6 +114,12 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
     setCopiedUrl(null);
     setTrailerOpen(false);
     setTrailerData(null);
+
+    const currentMode = getNetworkMode();
+    setNetworkModeState(currentMode);
+    checkDirectBdixAccess().then((direct) => {
+      setIsBdixDirect(direct);
+    });
 
     const isLikelySeries =
       Boolean(movie.category && /tv|series|anime|cartoon|korean|show|drama/i.test(movie.category)) ||
@@ -358,6 +390,30 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   {movie.sourceServer || "Server 12"}
                 </span>
+
+                <span className="text-neutral-600">•</span>
+                <button
+                  type="button"
+                  onClick={toggleNetworkMode}
+                  className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold transition cursor-pointer active:scale-95 bg-white/5 hover:bg-white/10 border border-white/10"
+                  title={`Mode: ${networkMode.toUpperCase()} (Click to toggle: Auto -> Direct BDIX -> Relay)`}
+                >
+                  {isEffectiveRelay ? (
+                    <>
+                      <Shield className="w-3 h-3 text-purple-400 shrink-0" />
+                      <span className="text-purple-300">
+                        {networkMode === "relay" ? "Forced Relay" : "Relay (Mobile)"}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-3 h-3 text-amber-400 shrink-0" />
+                      <span className="text-amber-300">
+                        {networkMode === "direct" ? "Direct BDIX" : "Direct (Wi-Fi)"}
+                      </span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>
@@ -417,7 +473,7 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
             {!isSeries && (
               <>
                 <a
-                  href={`/api/vlc/playlist?url=${encodeURIComponent(formatStreamUrl(primaryStreamUrl))}&title=${encodeURIComponent(primaryTitle)}`}
+                  href={`/api/vlc/playlist?url=${encodeURIComponent(getFormattedUrl(primaryStreamUrl))}&title=${encodeURIComponent(primaryTitle)}`}
                   download
                   className="p-2.5 sm:px-3 sm:py-3 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition flex items-center justify-center min-w-[42px] min-h-[42px]"
                   title="Download .m3u playlist file"
@@ -426,11 +482,11 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                 </a>
 
                 <button
-                  onClick={() => handleCopy(formatStreamUrl(primaryStreamUrl))}
+                  onClick={() => handleCopy(getFormattedUrl(primaryStreamUrl))}
                   className="p-2.5 sm:px-3 sm:py-3 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition flex items-center justify-center min-w-[42px] min-h-[42px]"
                   title="Copy direct stream link"
                 >
-                  {copiedUrl === formatStreamUrl(primaryStreamUrl) || copiedUrl === primaryStreamUrl ? (
+                  {copiedUrl === getFormattedUrl(primaryStreamUrl) || copiedUrl === primaryStreamUrl ? (
                     <Check className="w-4 h-4 text-emerald-400" />
                   ) : (
                     <Copy className="w-4 h-4" />
@@ -650,7 +706,7 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
 
                             {/* Download M3U for this episode */}
                             <a
-                              href={`/api/vlc/playlist?url=${encodeURIComponent(ep.streamUrl)}&title=${encodeURIComponent(`${movie.title} S${activeSeasonNumber}E${ep.episodeNumber} - ${ep.title}`)}`}
+                              href={`/api/vlc/playlist?url=${encodeURIComponent(getFormattedUrl(ep.streamUrl))}&title=${encodeURIComponent(`${movie.title} S${activeSeasonNumber}E${ep.episodeNumber} - ${ep.title}`)}`}
                               download
                               onClick={(e) => e.stopPropagation()}
                               className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition flex items-center justify-center min-w-[28px] min-h-[28px] cursor-pointer"
@@ -663,12 +719,12 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleCopy(ep.streamUrl);
+                                handleCopy(getFormattedUrl(ep.streamUrl));
                               }}
                               className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition flex items-center justify-center min-w-[28px] min-h-[28px] cursor-pointer"
                               title="Copy direct stream link"
                             >
-                              {copiedUrl === ep.streamUrl ? (
+                              {copiedUrl === getFormattedUrl(ep.streamUrl) || copiedUrl === ep.streamUrl ? (
                                 <Check className="w-3.5 h-3.5 text-emerald-400" />
                               ) : (
                                 <Copy className="w-3.5 h-3.5" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { formatStreamUrl } from "@/lib/relay-config";
+import { formatStreamUrl, checkDirectBdixAccess, getNetworkMode } from "@/lib/relay-config";
 import { addToWatchHistory, WatchHistoryItem } from "@/lib/user-store";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 
@@ -15,6 +15,8 @@ export interface VlcPlayOptions {
   onToast?: (message: { text: string; type: "success" | "error" }) => void;
 }
 
+let isPlayInProgress = false;
+
 export async function playInVlc({
   streamUrl,
   title,
@@ -25,6 +27,12 @@ export async function playInVlc({
   episodeTitle,
   onToast,
 }: VlcPlayOptions): Promise<void> {
+  if (isPlayInProgress) return;
+  isPlayInProgress = true;
+  setTimeout(() => {
+    isPlayInProgress = false;
+  }, 1500);
+
   if (!streamUrl || !streamUrl.trim()) {
     onToast?.({ text: `No direct stream URL available for "${title}"`, type: "error" });
     return;
@@ -35,6 +43,11 @@ export async function playInVlc({
     window.open(streamUrl, "_blank");
     onToast?.({ text: `Opening directory for "${title}" on BDIX server...`, type: "success" });
     return;
+  }
+
+  // If in Auto mode, test if direct BDIX (172.16.50.x) is reachable on current network
+  if (getNetworkMode() === "auto") {
+    await checkDirectBdixAccess();
   }
 
   // Format URL through Helper Relay if enabled (for mobile data / off-network access)
@@ -136,7 +149,7 @@ export async function playInVlc({
         body: JSON.stringify({ streamUrl: validUrl, title }),
       });
       const data = await res.json();
-      if (data.success) {
+      if (data.ok || data.success) {
         onToast?.({ text: `Streaming "${title}" in VLC Media Player!`, type: "success" });
         return;
       }

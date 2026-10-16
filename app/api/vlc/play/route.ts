@@ -64,8 +64,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Launch VLC with the stream URL using "--" to prevent argument injection
-    const vlcProcess = execFile(vlcPath, ["--", sanitizedUrl], (error) => {
+    // Launch VLC directly in fullscreen mode
+    const vlcProcess = execFile(vlcPath, ["--fullscreen", "--", sanitizedUrl], (error) => {
       if (error) {
         console.error("VLC launch error:", error);
       }
@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      success: true,
       message: "Streaming directly in VLC",
       pid: vlcProcess.pid
     });

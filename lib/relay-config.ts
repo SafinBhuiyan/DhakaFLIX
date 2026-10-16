@@ -1,9 +1,16 @@
-// DhakaFLIX Helper Relay Utilities
-// Allows mobile data and off-network users to stream media via home BDIX helper server.
+// DhakaFLIX Smart Network & Helper Relay Configuration
+// Intelligently detects whether user has direct BDIX access (Home Wi-Fi)
+// or requires Helper Relay (Mobile Data / Off-network).
 
 const DEFAULT_RELAY_URL = process.env.NEXT_PUBLIC_HELPER_RELAY_URL || "";
 const STORAGE_KEY_URL = "dhakaflix_helper_url";
-const STORAGE_KEY_ENABLED = "dhakaflix_helper_enabled";
+const STORAGE_KEY_MODE = "dhakaflix_network_mode"; // "auto" | "direct" | "relay"
+
+export type NetworkMode = "auto" | "direct" | "relay";
+
+// In-memory cache for BDIX reachability check (avoids redundant network probes)
+let cachedDirectBdixStatus: { reachable: boolean; timestamp: number } | null = null;
+const CACHE_TTL_MS = 60 * 1000; // 1 minute cache
 
 export function getRelayUrl(): string {
   if (typeof window !== "undefined") {
@@ -25,19 +32,83 @@ export function setRelayUrl(url: string): void {
   }
 }
 
-export function isRelayEnabled(): boolean {
-  if (typeof window === "undefined") return Boolean(DEFAULT_RELAY_URL);
-  const val = localStorage.getItem(STORAGE_KEY_ENABLED);
-  if (val === null) {
-    // Default to enabled if a relay URL is available
-    return Boolean(getRelayUrl());
+export function getNetworkMode(): NetworkMode {
+  if (typeof window === "undefined") return "auto";
+  const mode = localStorage.getItem(STORAGE_KEY_MODE) as NetworkMode | null;
+  if (mode === "direct" || mode === "relay" || mode === "auto") {
+    return mode;
   }
-  return val === "true";
+  return "auto";
+}
+
+export function setNetworkMode(mode: NetworkMode): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEY_MODE, mode);
+  // Reset cache on manual change
+  cachedDirectBdixStatus = null;
+}
+
+// Backwards-compatible relay enabled checker
+export function isRelayEnabled(): boolean {
+  const mode = getNetworkMode();
+  if (mode === "direct") return false;
+  if (mode === "relay") return true;
+  // In auto mode, if direct BDIX is cached as reachable, relay is NOT enabled
+  if (cachedDirectBdixStatus && cachedDirectBdixStatus.reachable) {
+    return false;
+  }
+  return Boolean(getRelayUrl());
 }
 
 export function setRelayEnabled(enabled: boolean): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY_ENABLED, String(enabled));
+  setNetworkMode(enabled ? "relay" : "direct");
+}
+
+/**
+ * Checks if the client browser has direct local access to BDIX storage nodes (172.16.50.x).
+ * Runs a lightweight 1.5-second image/probe request.
+ */
+export async function checkDirectBdixAccess(forceCheck = false): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+
+  const now = Date.now();
+  if (!forceCheck && cachedDirectBdixStatus && (now - cachedDirectBdixStatus.timestamp) < CACHE_TTL_MS) {
+    return cachedDirectBdixStatus.reachable;
+  }
+
+  return new Promise((resolve) => {
+    let resolved = false;
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        cachedDirectBdixStatus = { reachable: false, timestamp: Date.now() };
+        resolve(false);
+      }
+    }, 1500);
+
+    // Fast image probe to BDIX storage node 172.16.50.4
+    const img = new Image();
+    img.onload = () => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timeout);
+        cachedDirectBdixStatus = { reachable: true, timestamp: Date.now() };
+        resolve(true);
+      }
+    };
+    img.onerror = () => {
+      // If error fires quickly (e.g. 404 or image decode error), the server WAS reached!
+      // On mobile data, connection times out rather than instantly erroring out.
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timeout);
+        cachedDirectBdixStatus = { reachable: true, timestamp: Date.now() };
+        resolve(true);
+      }
+    };
+
+    img.src = `http://172.16.50.4/favicon.ico?_t=${Date.now()}`;
+  });
 }
 
 export async function checkRelayHealth(url?: string): Promise<boolean> {
@@ -59,13 +130,13 @@ export async function checkRelayHealth(url?: string): Promise<boolean> {
 
 /**
  * Transforms direct BDIX URLs (172.16.50.x) to route via the helper relay
- * when the relay is enabled.
+ * only when required (on mobile data, off-network, or forced relay).
  */
 export function formatStreamUrl(streamUrl: string, forceRelay?: boolean): string {
   if (!streamUrl || typeof streamUrl !== "string") return "";
 
   // 1. If already proxied by relay or contains a tunnel, NEVER re-proxy it!
-  if (streamUrl.includes("/stream/") || streamUrl.includes("trycloudflare.com")) {
+  if (streamUrl.includes("/stream/") || streamUrl.includes("trycloudflare.com") || streamUrl.includes(".ts.net")) {
     return streamUrl;
   }
 
@@ -78,12 +149,29 @@ export function formatStreamUrl(streamUrl: string, forceRelay?: boolean): string
     return streamUrl;
   }
 
-  const shouldUse = forceRelay !== undefined ? forceRelay : isRelayEnabled();
-  if (!shouldUse || !relay) {
+  // If forceRelay is explicitly provided, respect it
+  if (forceRelay === false) {
     return streamUrl;
   }
 
-  // Extract clean file name with extension (e.g. "movie.mp4" or "video.mkv")
+  const mode = getNetworkMode();
+  if (mode === "direct" && forceRelay !== true) {
+    return streamUrl;
+  }
+
+  // In auto mode, if direct BDIX is verified reachable, use the blazing-fast direct stream!
+  if (mode === "auto" && forceRelay !== true) {
+    if (cachedDirectBdixStatus && cachedDirectBdixStatus.reachable) {
+      return streamUrl;
+    }
+  }
+
+  // If relay is needed and available, wrap it
+  if (!relay) {
+    return streamUrl;
+  }
+
+  // Extract clean file name with extension
   let fileName = "video.mp4";
   try {
     const cleanUrl = streamUrl.split("?")[0];
@@ -96,7 +184,6 @@ export function formatStreamUrl(streamUrl: string, forceRelay?: boolean): string
     }
   } catch {}
 
-  // Ensure clean formatting
   const sanitizedFileName = fileName
     .replace(/ /g, "%20")
     .replace(/\[/g, "%5B")

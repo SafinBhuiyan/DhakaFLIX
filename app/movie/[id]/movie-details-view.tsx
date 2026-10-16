@@ -20,6 +20,8 @@ import {
   Bookmark,
   BookmarkCheck,
   X,
+  Zap,
+  Shield,
 } from "lucide-react";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 import { DhakaFlixStream, DhakaEpisode, DhakaSeason } from "@/lib/dhakaflix";
@@ -29,7 +31,13 @@ import { SiteHeader } from "@/components/site-header";
 import { MobileNavBar } from "@/components/mobile-nav-bar";
 import { playInVlc } from "@/lib/vlc-player";
 import { isInWatchlist, toggleWatchlist } from "@/lib/user-store";
-import { formatStreamUrl } from "@/lib/relay-config";
+import {
+  formatStreamUrl,
+  getNetworkMode,
+  setNetworkMode,
+  checkDirectBdixAccess,
+  NetworkMode,
+} from "@/lib/relay-config";
 
 function YoutubeIcon({ className = "w-4 h-4", ...props }: React.SVGProps<SVGSVGElement>) {
   return (
@@ -71,6 +79,32 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
     trailerTitle: string;
     youtubeUrl?: string;
   } | null>(null);
+
+  // Smart Network Mode State (Auto, Direct BDIX, or Relay)
+  const [networkMode, setNetworkModeState] = useState<NetworkMode>("auto");
+  const [isBdixDirect, setIsBdixDirect] = useState<boolean>(true);
+
+  // Sync Network Mode and probe direct BDIX reachability on mount
+  useEffect(() => {
+    setNetworkModeState(getNetworkMode());
+    checkDirectBdixAccess().then((direct) => {
+      setIsBdixDirect(direct);
+    });
+  }, [id]);
+
+  const toggleNetworkMode = () => {
+    const next: NetworkMode =
+      networkMode === "auto" ? "direct" : networkMode === "direct" ? "relay" : "auto";
+    setNetworkMode(next);
+    setNetworkModeState(next);
+  };
+
+  const isEffectiveRelay =
+    networkMode === "relay" || (networkMode === "auto" && !isBdixDirect);
+
+  const getFormattedUrl = (url: string) => {
+    return formatStreamUrl(url, isEffectiveRelay);
+  };
 
   const showToast = useCallback((msg: { text: string; type: "success" | "error" }) => {
     setToastMessage(msg);
@@ -551,6 +585,30 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 {movie.sourceServer || "Server 14"}
               </span>
+
+              <span className="text-neutral-600">•</span>
+              <button
+                type="button"
+                onClick={toggleNetworkMode}
+                className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold transition cursor-pointer active:scale-95 bg-white/5 hover:bg-white/10 border border-white/10"
+                title={`Streaming Mode: ${networkMode.toUpperCase()} (Click to toggle: Auto -> Direct BDIX -> Relay)`}
+              >
+                {isEffectiveRelay ? (
+                  <>
+                    <Shield className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                    <span className="text-purple-300">
+                      {networkMode === "relay" ? "Forced Relay" : "Relay (Mobile)"}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="text-amber-300">
+                      {networkMode === "direct" ? "Direct BDIX" : "Direct (Wi-Fi)"}
+                    </span>
+                  </>
+                )}
+              </button>
             </div>
 
             {/* Mobile-Friendly Action Buttons */}
@@ -634,7 +692,7 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
                 {!isSeries && (
                   <>
                     <a
-                      href={`/api/vlc/playlist?url=${encodeURIComponent(formatStreamUrl(primaryStreamUrl))}&title=${encodeURIComponent(primaryTitle)}`}
+                      href={`/api/vlc/playlist?url=${encodeURIComponent(getFormattedUrl(primaryStreamUrl))}&title=${encodeURIComponent(primaryTitle)}`}
                       download
                       className="flex-1 sm:flex-initial p-3 sm:px-4 sm:py-3.5 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white border border-white/10 transition flex items-center justify-center min-h-[46px] text-xs font-semibold gap-1.5"
                       title="Download .m3u playlist file"
@@ -644,11 +702,11 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
                     </a>
 
                     <button
-                      onClick={() => handleCopy(formatStreamUrl(primaryStreamUrl))}
+                      onClick={() => handleCopy(getFormattedUrl(primaryStreamUrl))}
                       className="flex-1 sm:flex-initial p-3 sm:px-4 sm:py-3.5 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white border border-white/10 transition flex items-center justify-center min-h-[46px] text-xs font-semibold gap-1.5 cursor-pointer"
                       title="Copy direct stream link"
                     >
-                      {copiedUrl === formatStreamUrl(primaryStreamUrl) || copiedUrl === primaryStreamUrl ? (
+                      {copiedUrl === getFormattedUrl(primaryStreamUrl) || copiedUrl === primaryStreamUrl ? (
                         <>
                           <Check className="w-4 h-4 text-emerald-400" />
                           <span className="text-emerald-400">Copied</span>
@@ -874,7 +932,7 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
 
                           {/* Download M3U */}
                           <a
-                            href={`/api/vlc/playlist?url=${encodeURIComponent(ep.streamUrl)}&title=${encodeURIComponent(`${movie.title} S${activeSeasonNumber}E${ep.episodeNumber} - ${ep.title}`)}`}
+                            href={`/api/vlc/playlist?url=${encodeURIComponent(getFormattedUrl(ep.streamUrl))}&title=${encodeURIComponent(`${movie.title} S${activeSeasonNumber}E${ep.episodeNumber} - ${ep.title}`)}`}
                             download
                             onClick={(e) => e.stopPropagation()}
                             className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition flex items-center justify-center min-w-[30px] min-h-[30px] cursor-pointer"
@@ -887,12 +945,12 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleCopy(ep.streamUrl);
+                              handleCopy(getFormattedUrl(ep.streamUrl));
                             }}
                             className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition flex items-center justify-center min-w-[30px] min-h-[30px] cursor-pointer"
                             title="Copy direct stream link"
                           >
-                            {copiedUrl === ep.streamUrl ? (
+                            {copiedUrl === getFormattedUrl(ep.streamUrl) || copiedUrl === ep.streamUrl ? (
                               <Check className="w-3.5 h-3.5 text-emerald-400" />
                             ) : (
                               <Copy className="w-3.5 h-3.5" />
