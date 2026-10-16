@@ -12,11 +12,43 @@ export type NetworkMode = "auto" | "direct" | "relay";
 let cachedDirectBdixStatus: { reachable: boolean; timestamp: number } | null = null;
 const CACHE_TTL_MS = 60 * 1000; // 1 minute cache
 
+export function unwrapStreamUrl(url: string): string {
+  if (!url || typeof url !== "string") return "";
+  const trimmed = url.trim();
+
+  // If URL contains a query param 'url=http%3A%2F%2F172...' or 'url=http://172...'
+  if (trimmed.includes("url=")) {
+    try {
+      const u = new URL(trimmed);
+      const inner = u.searchParams.get("url");
+      if (inner && /^https?:\/\/172\.16\.50\./i.test(inner)) {
+        return decodeURIComponent(inner);
+      }
+    } catch {
+      const match = trimmed.match(/[?&]url=([^&]+)/);
+      if (match && match[1]) {
+        const decoded = decodeURIComponent(match[1]);
+        if (/^https?:\/\/172\.16\.50\./i.test(decoded)) {
+          return decoded;
+        }
+      }
+    }
+  }
+
+  return trimmed;
+}
+
 export function getRelayUrl(): string {
   if (typeof window !== "undefined") {
     const custom = localStorage.getItem(STORAGE_KEY_URL);
     if (custom && custom.trim()) {
-      return custom.trim().replace(/\/+$/, "");
+      const clean = custom.trim().replace(/\/+$/, "");
+      // Ephemeral trycloudflare tunnels expire; purge them automatically
+      if (clean.includes("trycloudflare.com")) {
+        localStorage.removeItem(STORAGE_KEY_URL);
+      } else {
+        return clean;
+      }
     }
   }
   return DEFAULT_RELAY_URL.replace(/\/+$/, "");
@@ -25,7 +57,7 @@ export function getRelayUrl(): string {
 export function setRelayUrl(url: string): void {
   if (typeof window === "undefined") return;
   const clean = url.trim().replace(/\/+$/, "");
-  if (!clean) {
+  if (!clean || clean.includes("trycloudflare.com")) {
     localStorage.removeItem(STORAGE_KEY_URL);
   } else {
     localStorage.setItem(STORAGE_KEY_URL, clean);
@@ -66,7 +98,7 @@ export function setRelayEnabled(enabled: boolean): void {
 
 /**
  * Checks if the client browser has direct local access to BDIX storage nodes (172.16.50.x).
- * Runs a lightweight 1.5-second image/probe request.
+ * Runs a strict 1.2-second probe. Only resolves true if BDIX is reachable on the local network.
  */
 export async function checkDirectBdixAccess(forceCheck = false): Promise<boolean> {
   if (typeof window === "undefined") return false;
@@ -76,39 +108,32 @@ export async function checkDirectBdixAccess(forceCheck = false): Promise<boolean
     return cachedDirectBdixStatus.reachable;
   }
 
-  return new Promise((resolve) => {
-    let resolved = false;
-    const timeout = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        cachedDirectBdixStatus = { reachable: false, timestamp: Date.now() };
-        resolve(false);
-      }
-    }, 1500);
+  // If frontend is served over HTTPS, mixed-content prevents direct HTTP to 172.16.50.4
+  if (window.location.protocol === "https:") {
+    cachedDirectBdixStatus = { reachable: false, timestamp: Date.now() };
+    return false;
+  }
 
-    // Fast image probe to BDIX storage node 172.16.50.4
-    const img = new Image();
-    img.onload = () => {
-      if (!resolved) {
-        resolved = true;
-        clearTimeout(timeout);
-        cachedDirectBdixStatus = { reachable: true, timestamp: Date.now() };
-        resolve(true);
-      }
-    };
-    img.onerror = () => {
-      // If error fires quickly (e.g. 404 or image decode error), the server WAS reached!
-      // On mobile data, connection times out rather than instantly erroring out.
-      if (!resolved) {
-        resolved = true;
-        clearTimeout(timeout);
-        cachedDirectBdixStatus = { reachable: true, timestamp: Date.now() };
-        resolve(true);
-      }
-    };
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1200);
 
-    img.src = `http://172.16.50.4/favicon.ico?_t=${Date.now()}`;
-  });
+    // Strict no-cors fetch probe:
+    // On Wi-Fi: 172.16.50.4 responds in <50ms, fetch resolves opaque response.
+    // On Mobile Data: 172.16.50.x is not routed, carrier rejects or times out, fetch throws.
+    await fetch("http://172.16.50.4/favicon.ico", {
+      mode: "no-cors",
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    cachedDirectBdixStatus = { reachable: true, timestamp: Date.now() };
+    return true;
+  } catch {
+    cachedDirectBdixStatus = { reachable: false, timestamp: Date.now() };
+    return false;
+  }
 }
 
 export async function checkRelayHealth(url?: string): Promise<boolean> {
@@ -135,46 +160,41 @@ export async function checkRelayHealth(url?: string): Promise<boolean> {
 export function formatStreamUrl(streamUrl: string, forceRelay?: boolean): string {
   if (!streamUrl || typeof streamUrl !== "string") return "";
 
-  // 1. If already proxied by relay or contains a tunnel, NEVER re-proxy it!
-  if (streamUrl.includes("/stream/") || streamUrl.includes("trycloudflare.com") || streamUrl.includes(".ts.net")) {
-    return streamUrl;
-  }
+  // 0. Unwrap any existing tunneled/proxied URL to get the canonical BDIX target
+  const canonicalUrl = unwrapStreamUrl(streamUrl);
 
-  // 2. Must be a direct BDIX URL (starts with http://172.16.50. or https://172.16.50.)
-  const isDirectBdix = /^https?:\/\/172\.16\.50\./i.test(streamUrl.trim());
-  if (!isDirectBdix) return streamUrl;
+  // 1. Must be a direct BDIX URL (starts with http://172.16.50. or https://172.16.50.)
+  const isDirectBdix = /^https?:\/\/172\.16\.50\./i.test(canonicalUrl.trim());
+  if (!isDirectBdix) return canonicalUrl;
 
   const relay = getRelayUrl();
-  if (relay && streamUrl.startsWith(relay)) {
-    return streamUrl;
-  }
 
-  // If forceRelay is explicitly provided, respect it
+  // If forceRelay is explicitly false, return canonical BDIX
   if (forceRelay === false) {
-    return streamUrl;
+    return canonicalUrl;
   }
 
   const mode = getNetworkMode();
   if (mode === "direct" && forceRelay !== true) {
-    return streamUrl;
+    return canonicalUrl;
   }
 
   // In auto mode, if direct BDIX is verified reachable, use the blazing-fast direct stream!
   if (mode === "auto" && forceRelay !== true) {
     if (cachedDirectBdixStatus && cachedDirectBdixStatus.reachable) {
-      return streamUrl;
+      return canonicalUrl;
     }
   }
 
   // If relay is needed and available, wrap it
   if (!relay) {
-    return streamUrl;
+    return canonicalUrl;
   }
 
   // Extract clean file name with extension
   let fileName = "video.mp4";
   try {
-    const cleanUrl = streamUrl.split("?")[0];
+    const cleanUrl = canonicalUrl.split("?")[0];
     const lastSlash = cleanUrl.lastIndexOf("/");
     if (lastSlash !== -1) {
       const extracted = decodeURIComponent(cleanUrl.substring(lastSlash + 1));
@@ -189,5 +209,5 @@ export function formatStreamUrl(streamUrl: string, forceRelay?: boolean): string
     .replace(/\[/g, "%5B")
     .replace(/\]/g, "%5D");
 
-  return `${relay}/stream/${sanitizedFileName}?url=${encodeURIComponent(streamUrl)}`;
+  return `${relay}/stream/${sanitizedFileName}?url=${encodeURIComponent(canonicalUrl)}`;
 }

@@ -3,12 +3,27 @@ const https = require('https');
 
 const PORT = 8080;
 
-// Prevent server crashes from any unhandled errors
+// High-performance persistent connection agent (eliminates TCP handshake delay on seeks)
+const httpAgent = new http.Agent({
+  keepAlive: true,
+  maxSockets: 100,
+  maxFreeSockets: 30,
+  timeout: 60000,
+});
+
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 100,
+  maxFreeSockets: 30,
+  timeout: 60000,
+});
+
+// Prevent server crashes from unhandled errors
 process.on('uncaughtException', (err) => {
-  console.error('[Relay Warning - Handled]:', err.message);
+  console.error('[Relay Warning]:', err.message);
 });
 process.on('unhandledRejection', (reason) => {
-  console.error('[Relay Warning - Handled]:', reason);
+  console.error('[Relay Warning]:', reason);
 });
 
 function streamVideo(targetUrl, req, res) {
@@ -19,40 +34,44 @@ function streamVideo(targetUrl, req, res) {
       return;
     }
 
-    // Security & Anti-Loop: Never proxy self or Cloudflare tunnels!
     if (targetUrl.includes('trycloudflare.com') || targetUrl.includes('localhost') || targetUrl.includes('127.0.0.1')) {
       res.writeHead(400, { 'Content-Type': 'text/plain' });
-      res.end('Error: Recursive proxy loop detected and blocked.');
+      res.end('Error: Recursive loop detected and blocked.');
       return;
     }
 
     let parsedTarget;
     try {
       parsedTarget = new URL(targetUrl);
-    } catch (e) {
+    } catch {
       res.writeHead(400, { 'Content-Type': 'text/plain' });
       res.end('Error: Invalid URL format');
       return;
     }
 
-    // Support both http and https protocols safely
-    const client = parsedTarget.protocol === 'https:' ? https : http;
+    const isHttps = parsedTarget.protocol === 'https:';
+    const client = isHttps ? https : http;
+    const agent = isHttps ? httpsAgent : httpAgent;
 
-    // Forward video seek requests (Range header for scrubbing)
+    // Forward Range header for video scrubbing
     const forwardHeaders = {};
     if (req.headers.range) {
       forwardHeaders.range = req.headers.range;
     }
+
+    // Disable Nagle's algorithm for instant chunk transmission
+    if (req.socket) req.socket.setNoDelay(true);
+    if (res.socket) res.socket.setNoDelay(true);
 
     const upstreamReq = client.request(
       parsedTarget,
       {
         method: req.method,
         headers: forwardHeaders,
-        timeout: 10000, // 10s connection timeout
+        agent: agent,
+        timeout: 10000,
       },
       (upstreamRes) => {
-        // Sniff real video format
         let mimeType = upstreamRes.headers['content-type'];
         const lowerUrl = targetUrl.toLowerCase();
         if (!mimeType || mimeType === 'application/octet-stream') {
@@ -68,6 +87,7 @@ function streamVideo(targetUrl, req, res) {
           'Accept-Ranges': 'bytes',
           'Content-Type': mimeType,
           'Content-Disposition': 'inline',
+          'Cache-Control': 'public, max-age=3600',
         };
 
         if (upstreamRes.headers['content-length']) {
@@ -83,7 +103,6 @@ function streamVideo(targetUrl, req, res) {
     );
 
     upstreamReq.on('timeout', () => {
-      console.error('[Timeout] BDIX server took too long to respond:', targetUrl);
       upstreamReq.destroy();
       if (!res.headersSent) {
         res.writeHead(504, { 'Content-Type': 'text/plain' });
@@ -92,7 +111,6 @@ function streamVideo(targetUrl, req, res) {
     });
 
     upstreamReq.on('error', (err) => {
-      console.error('[BDIX Connection Error]:', err.message);
       if (!res.headersSent) {
         res.writeHead(502, { 'Content-Type': 'text/plain' });
         res.end('Error reaching BDIX storage server: ' + err.message);
@@ -105,7 +123,6 @@ function streamVideo(targetUrl, req, res) {
 
     upstreamReq.end();
   } catch (err) {
-    console.error('[Stream Catch]:', err.message);
     if (!res.headersSent) {
       res.writeHead(500, { 'Content-Type': 'text/plain' });
       res.end('Internal Server Error: ' + err.message);
@@ -129,7 +146,7 @@ const server = http.createServer((req, res) => {
   // Health check
   if (reqUrl.pathname === '/' || reqUrl.pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'online', message: 'DhakaFLIX Helper is running!' }));
+    res.end(JSON.stringify({ status: 'online', message: 'DhakaFLIX Relay is running!' }));
     return;
   }
 
@@ -150,6 +167,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log('🍿 DhakaFLIX Relay Helper is LIVE and Crash-Proof!');
-  console.log('📡 Port: ' + PORT);
+  console.log('🚀 DhakaFLIX High-Speed Relay running on port ' + PORT);
 });

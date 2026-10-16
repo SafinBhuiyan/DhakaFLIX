@@ -326,8 +326,12 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
           episodeTitle: activeEpisode.title,
           onToast: showToast,
         });
-      } else if (movie.serverUrl) {
-        window.open(movie.serverUrl, "_blank");
+      } else {
+        const el = document.getElementById("episodes-section");
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth" });
+        }
+        showToast({ text: "Please select an episode below to stream.", type: "error" });
       }
     } else {
       const streamUrl = primaryStreamUrl;
@@ -616,23 +620,37 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
               {/* Primary 1-Click Play in VLC */}
               <button
                 onClick={handlePlayActiveVlc}
-                className="w-full sm:w-auto flex items-center justify-center gap-2.5 px-6 sm:px-8 py-3.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-sm font-bold shadow-xl shadow-orange-950/50 active:scale-95 transition min-h-[48px] cursor-pointer"
+                disabled={isSeries && loadingStreams}
+                className={`w-full sm:w-auto flex items-center justify-center gap-2.5 px-6 sm:px-8 py-3.5 rounded-xl text-white text-sm font-bold shadow-xl active:scale-95 transition min-h-[48px] cursor-pointer ${
+                  isSeries && loadingStreams
+                    ? "bg-neutral-800 text-neutral-400 cursor-not-allowed opacity-75"
+                    : "bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 shadow-orange-950/50"
+                }`}
                 title={
                   isSeries
                     ? activeEpisode
                       ? `Stream S${activeSeasonNumber}:E${activeEpisode.episodeNumber} directly in VLC`
-                      : "Browse Series Directory on BDIX"
+                      : "Select an episode below to stream"
                     : "Stream directly in VLC (Mobile & Desktop)"
                 }
               >
-                <VlcIcon size={20} fill="#FFFFFF" className="shrink-0" />
-                <span className="font-bold tracking-wide">
-                  {isSeries
-                    ? activeEpisode
-                      ? `Play E${activeEpisode.episodeNumber} in VLC`
-                      : "Browse Series Files"
-                    : "Play in VLC"}
-                </span>
+                {isSeries && loadingStreams ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin text-white shrink-0" />
+                    <span className="font-bold tracking-wide">Loading Episodes...</span>
+                  </>
+                ) : (
+                  <>
+                    <VlcIcon size={20} fill="#FFFFFF" className="shrink-0" />
+                    <span className="font-bold tracking-wide">
+                      {isSeries
+                        ? activeEpisode
+                          ? `Play E${activeEpisode.episodeNumber} in VLC`
+                          : "Select Episode Below"
+                        : "Play in VLC"}
+                    </span>
+                  </>
+                )}
               </button>
 
               {/* Secondary Actions Bar */}
@@ -741,7 +759,7 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
         {/* EPISODE COLLECTION SECTION (for TV & Web Series)             */}
         {/* ============================================================ */}
         {isSeries && (
-          <section className="space-y-4 pt-8 mt-8 border-t border-white/10">
+          <section id="episodes-section" className="space-y-4 pt-8 mt-8 border-t border-white/10">
             {/* Episodes Header + Season Tabs */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -798,20 +816,10 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
 
             {/* Empty State */}
             {!loadingStreams && currentEpisodes.length === 0 && (
-              <div className="p-10 text-center text-sm text-neutral-400 space-y-3 bg-[#141416] rounded-2xl border border-white/5">
-                <p>No individual video files discovered in this season directory.</p>
-                {movie.serverUrl && (
-                  <a
-                    href={movie.serverUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-200 text-xs font-semibold transition border border-white/10"
-                  >
-                    <Folder className="w-4 h-4 text-amber-400" />
-                    <span>Browse folder on DhakaFlix BDIX</span>
-                    <ExternalLink className="w-3 h-3 text-neutral-400" />
-                  </a>
-                )}
+              <div className="p-10 text-center text-sm text-neutral-400 space-y-2 bg-[#141416] rounded-2xl border border-white/5">
+                <Film className="w-8 h-8 text-neutral-500 mx-auto" />
+                <p className="font-semibold text-neutral-300">No playable episodes discovered in this season.</p>
+                <p className="text-xs text-neutral-500">Please try another season tab above or explore other titles.</p>
               </div>
             )}
 

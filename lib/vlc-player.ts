@@ -38,10 +38,9 @@ export async function playInVlc({
     return;
   }
 
-  // If URL is a directory, open directory on BDIX server
+  // If URL is a directory, never open raw BDIX server in browser
   if (streamUrl.endsWith("/")) {
-    window.open(streamUrl, "_blank");
-    onToast?.({ text: `Opening directory for "${title}" on BDIX server...`, type: "success" });
+    onToast?.({ text: `Please select an episode from "${title}" to play in VLC.`, type: "error" });
     return;
   }
 
