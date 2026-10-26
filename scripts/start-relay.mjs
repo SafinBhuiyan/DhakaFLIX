@@ -69,21 +69,21 @@ function scanForTunnelUrl(chunk) {
     tunnelUrlFound = true;
     const publicUrl = match[0];
 
+    const unifiedUrl = `https://dhaka-flix-green.vercel.app/?relay=${publicUrl}`;
+
     try {
-      fs.writeFileSync("active-mobile-url.txt", publicUrl, "utf8");
+      fs.writeFileSync("active-mobile-url.txt", unifiedUrl, "utf8");
     } catch {}
 
     console.log("\n==============================================================");
-    console.log(" 🎉 DHAKAFLIX MOBILE DATA STREAMING RELAY IS ONLINE!");
+    console.log(" 🎉 DHAKAFLIX 4G MOBILE RELAY IS ONLINE!");
     console.log("==============================================================");
-    console.log("\n📲 OVER MOBILE DATA (Anywhere outside home):");
-    console.log(`   👉 Open this link on your phone: ${publicUrl}`);
-    console.log("   • Full website + VLC streaming routes through your home BDIX.");
-    console.log("   • Zero manual setup needed!\n");
-    console.log("📶 OVER HOME WI-FI (Fastest 100+ Mbps direct BDIX speed):");
-    console.log(`   👉 Open on your phone: http://${localIp}:3000`);
-    console.log("   • Native VLC plays directly from BDIX servers without relay.");
-    console.log("\n💡 Press Ctrl+C in this terminal to stop the relay.");
+    console.log("\n📲 ONE UNIFIED LINK FOR EVERYTHING (Open on your phone):");
+    console.log(`   👉 ${unifiedUrl}`);
+    console.log("   • Works on both Wi-Fi and 4G Mobile Data seamlessly.");
+    console.log("   • Your phone automatically saves the relay connection.");
+    console.log("   • On Home Wi-Fi, streams direct from BDIX at full 100+ Mbps!\n");
+    console.log("💡 Press Ctrl+C in this terminal to stop the relay.");
     console.log("==============================================================\n");
   }
 }

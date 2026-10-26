@@ -40,6 +40,26 @@ export function unwrapStreamUrl(url: string): string {
 
 export function getRelayUrl(): string {
   if (typeof window !== "undefined") {
+    // 0. Auto-capture relay parameter from query string if user clicked an active relay link:
+    // e.g. https://dhaka-flix-green.vercel.app/?relay=https://xxxx.trycloudflare.com
+    if (window.location.search && window.location.search.includes("relay=")) {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const urlParam = params.get("relay");
+        if (urlParam && /^https?:\/\//i.test(urlParam)) {
+          const cleanParam = urlParam.trim().replace(/\/+$/, "");
+          if (!cleanParam.includes("pole-mean-rent-pursuit")) {
+            localStorage.setItem(STORAGE_KEY_URL, cleanParam);
+            // Cleanly remove ?relay= from browser address bar
+            const cleanUrl = new URL(window.location.href);
+            cleanUrl.searchParams.delete("relay");
+            window.history.replaceState({}, "", cleanUrl.pathname + (cleanUrl.search || ""));
+            return cleanParam;
+          }
+        }
+      } catch {}
+    }
+
     // 1. If currently loaded through a Cloudflare tunnel or ngrok,
     // the current browser origin IS automatically the active relay!
     const host = window.location.hostname.toLowerCase();

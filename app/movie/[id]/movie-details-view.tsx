@@ -101,6 +101,15 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
     setNetworkMode(next);
     setNetworkModeState(next);
     setHasRelayUrl(Boolean(getRelayUrl()));
+    showToast({
+      text:
+        next === "direct"
+          ? "Switched to Direct BDIX (Fastest for Wi-Fi)"
+          : next === "relay"
+          ? "Switched to Relay Mode (For 4G Mobile Data)"
+          : "Switched to Smart Auto-Detect Mode",
+      type: "success",
+    });
   };
 
   const isEffectiveRelay =
