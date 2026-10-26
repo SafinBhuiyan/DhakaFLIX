@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -80,6 +80,84 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
     trailerTitle: string;
     youtubeUrl?: string;
   } | null>(null);
+
+  // Desktop mouse drag-to-scroll refs & handlers for horizontal secondary actions bar
+  const actionsBarRef = useRef<HTMLDivElement>(null);
+  const isDraggingActionsRef = useRef(false);
+  const startXActionsRef = useRef(0);
+  const scrollLeftActionsRef = useRef(0);
+  const hasMovedActionsRef = useRef(false);
+
+  const handleActionsMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches)) return;
+    if (!actionsBarRef.current) return;
+    isDraggingActionsRef.current = true;
+    hasMovedActionsRef.current = false;
+    startXActionsRef.current = e.pageX - actionsBarRef.current.offsetLeft;
+    scrollLeftActionsRef.current = actionsBarRef.current.scrollLeft;
+  };
+
+  const handleActionsMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDraggingActionsRef.current || !actionsBarRef.current) return;
+    if (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches) return;
+    const x = e.pageX - actionsBarRef.current.offsetLeft;
+    const walk = (x - startXActionsRef.current) * 1.5;
+    if (Math.abs(walk) > 5) {
+      hasMovedActionsRef.current = true;
+    }
+    actionsBarRef.current.scrollLeft = scrollLeftActionsRef.current - walk;
+  };
+
+  const handleActionsMouseUpOrLeave = () => {
+    isDraggingActionsRef.current = false;
+  };
+
+  const handleActionsClickCapture = (e: React.MouseEvent) => {
+    if (hasMovedActionsRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      hasMovedActionsRef.current = false;
+    }
+  };
+
+  // Desktop mouse drag-to-scroll refs & handlers for season selector tabs
+  const seasonTabsRef = useRef<HTMLDivElement>(null);
+  const isDraggingSeasonsRef = useRef(false);
+  const startXSeasonsRef = useRef(0);
+  const scrollLeftSeasonsRef = useRef(0);
+  const hasMovedSeasonsRef = useRef(false);
+
+  const handleSeasonsMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches)) return;
+    if (!seasonTabsRef.current) return;
+    isDraggingSeasonsRef.current = true;
+    hasMovedSeasonsRef.current = false;
+    startXSeasonsRef.current = e.pageX - seasonTabsRef.current.offsetLeft;
+    scrollLeftSeasonsRef.current = seasonTabsRef.current.scrollLeft;
+  };
+
+  const handleSeasonsMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDraggingSeasonsRef.current || !seasonTabsRef.current) return;
+    if (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches) return;
+    const x = e.pageX - seasonTabsRef.current.offsetLeft;
+    const walk = (x - startXSeasonsRef.current) * 1.5;
+    if (Math.abs(walk) > 5) {
+      hasMovedSeasonsRef.current = true;
+    }
+    seasonTabsRef.current.scrollLeft = scrollLeftSeasonsRef.current - walk;
+  };
+
+  const handleSeasonsMouseUpOrLeave = () => {
+    isDraggingSeasonsRef.current = false;
+  };
+
+  const handleSeasonsClickCapture = (e: React.MouseEvent) => {
+    if (hasMovedSeasonsRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      hasMovedSeasonsRef.current = false;
+    }
+  };
 
   // Automatic Network Detection (Wi-Fi vs Mobile Data)
   const [isBdixDirect, setIsBdixDirect] = useState<boolean>(true);
@@ -540,7 +618,7 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
           </div>
 
           {/* Column 2: Title, Metadata, Actions, and Overview */}
-          <div className="space-y-4 sm:space-y-5 text-center md:text-left">
+          <div className="space-y-4 sm:space-y-5 text-center md:text-left min-w-0 max-w-full">
             {/* Title */}
             <div className="space-y-1">
               <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
@@ -622,7 +700,7 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
             </div>
 
             {/* Mobile-Friendly Action Buttons */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 pt-1">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 pt-1 min-w-0 max-w-full sm:flex-wrap">
               {/* Primary 1-Click Play in VLC */}
               <button
                 onClick={handlePlayActiveVlc}
@@ -678,91 +756,107 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
                 </a>
               )}
 
-              {/* Secondary Actions Bar */}
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                {/* Watchlist Toggle Button */}
-                <button
-                  onClick={handleToggleWatchlist}
-                  className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-3 sm:py-3.5 rounded-xl border text-xs sm:text-sm font-semibold transition active:scale-95 min-h-[46px] cursor-pointer ${
-                    isSavedInWatchlist
-                      ? "bg-red-600/20 text-[#e50914] border-red-500/40"
-                      : "bg-white/10 hover:bg-white/15 text-neutral-200 border-white/10"
-                  }`}
-                  title={isSavedInWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
+              {/* Secondary Actions Bar (Horizontally scrollable on mobile & drag-to-scroll on desktop) */}
+              <div className="w-full sm:w-auto min-w-0 max-w-full">
+                <div
+                  ref={actionsBarRef}
+                  onMouseDown={handleActionsMouseDown}
+                  onMouseMove={handleActionsMouseMove}
+                  onMouseUp={handleActionsMouseUpOrLeave}
+                  onMouseLeave={handleActionsMouseUpOrLeave}
+                  onClickCapture={handleActionsClickCapture}
+                  className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 -my-1 w-full sm:w-auto touch-pan-x overscroll-x-contain"
+                  style={{
+                    WebkitOverflowScrolling: "touch",
+                  }}
                 >
-                  {isSavedInWatchlist ? (
-                    <>
-                      <BookmarkCheck className="w-4 h-4 text-[#e50914]" />
-                      <span>In Watchlist</span>
-                    </>
-                  ) : (
-                    <>
-                      <Bookmark className="w-4 h-4 text-neutral-300" />
-                      <span>Watchlist</span>
-                    </>
-                  )}
-                </button>
-
-                {/* YouTube Trailer Button */}
-                <button
-                  onClick={handleOpenTrailer}
-                  disabled={trailerLoading}
-                  className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-3 sm:py-3.5 rounded-xl bg-white/10 hover:bg-red-950/40 hover:border-red-500/40 border border-white/10 text-neutral-200 hover:text-red-400 transition min-h-[46px] active:scale-95 cursor-pointer text-xs sm:text-sm font-semibold"
-                  title="Watch Official YouTube Trailer in Web Player"
-                >
-                  {trailerLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-red-500" />
-                  ) : (
-                    <YoutubeIcon className="w-4 h-4 text-red-500" />
-                  )}
-                  <span>Trailer</span>
-                </button>
-
-                {/* If TV Series: Season Playlist button */}
-                {isSeries && currentSeason && (
-                  <a
-                    href={`/api/vlc/playlist?seasonUrl=${encodeURIComponent(currentSeason.folderUrl)}&title=${encodeURIComponent(`${movie.title} ${currentSeason.seasonName}`)}`}
-                    download
-                    className="flex-1 sm:flex-initial px-4 py-3 sm:py-3.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 transition flex items-center justify-center gap-2 text-xs sm:text-sm font-semibold min-h-[46px] active:scale-95 whitespace-nowrap"
-                    title={`Download full ${currentSeason.seasonName} M3U playlist for VLC`}
+                  {/* Watchlist Toggle Button */}
+                  <button
+                    onClick={handleToggleWatchlist}
+                    className={`shrink-0 flex items-center justify-center gap-2 px-4 py-3 sm:py-3.5 rounded-xl border text-xs sm:text-sm font-semibold transition active:scale-95 min-h-[46px] whitespace-nowrap cursor-pointer ${
+                      isSavedInWatchlist
+                        ? "bg-red-600/20 text-[#e50914] border-red-500/40"
+                        : "bg-white/10 hover:bg-white/15 text-neutral-200 border-white/10"
+                    }`}
+                    title={isSavedInWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
                   >
-                    <ListVideo className="w-4 h-4" />
-                    <span>Playlist</span>
-                  </a>
-                )}
+                    {isSavedInWatchlist ? (
+                      <>
+                        <BookmarkCheck className="w-4 h-4 text-[#e50914] shrink-0" />
+                        <span>In Watchlist</span>
+                      </>
+                    ) : (
+                      <>
+                        <Bookmark className="w-4 h-4 text-neutral-300 shrink-0" />
+                        <span>Watchlist</span>
+                      </>
+                    )}
+                  </button>
 
-                {/* Movie-only: Download M3U & Copy Link */}
-                {!isSeries && (
-                  <>
+                  {/* YouTube Trailer Button */}
+                  <button
+                    onClick={handleOpenTrailer}
+                    disabled={trailerLoading}
+                    className="shrink-0 flex items-center justify-center gap-2 px-4 py-3 sm:py-3.5 rounded-xl bg-white/10 hover:bg-red-950/40 hover:border-red-500/40 border border-white/10 text-neutral-200 hover:text-red-400 transition min-h-[46px] active:scale-95 cursor-pointer text-xs sm:text-sm font-semibold whitespace-nowrap"
+                    title="Watch Official YouTube Trailer in Web Player"
+                  >
+                    {trailerLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-red-500 shrink-0" />
+                    ) : (
+                      <YoutubeIcon className="w-4 h-4 text-red-500 shrink-0" />
+                    )}
+                    <span>Trailer</span>
+                  </button>
+
+                  {/* If TV Series: Season Playlist button */}
+                  {isSeries && currentSeason && (
                     <a
-                      href={`/api/vlc/playlist?url=${encodeURIComponent(getFormattedUrl(primaryStreamUrl))}&title=${encodeURIComponent(primaryTitle)}`}
+                      href={`/api/vlc/playlist?seasonUrl=${encodeURIComponent(currentSeason.folderUrl)}&title=${encodeURIComponent(`${movie.title} ${currentSeason.seasonName}`)}`}
                       download
-                      className="flex-1 sm:flex-initial p-3 sm:px-4 sm:py-3.5 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white border border-white/10 transition flex items-center justify-center min-h-[46px] text-xs font-semibold gap-1.5"
-                      title="Download .m3u playlist file"
+                      className="shrink-0 px-4 py-3 sm:py-3.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 transition flex items-center justify-center gap-2 text-xs sm:text-sm font-semibold min-h-[46px] active:scale-95 whitespace-nowrap"
+                      title={`Download full ${currentSeason.seasonName} M3U playlist for VLC`}
                     >
-                      <Download className="w-4 h-4" />
+                      <ListVideo className="w-4 h-4 shrink-0" />
                       <span>Playlist</span>
                     </a>
+                  )}
 
-                    <button
-                      onClick={() => handleCopy(getFormattedUrl(primaryStreamUrl))}
-                      className="flex-1 sm:flex-initial p-3 sm:px-4 sm:py-3.5 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white border border-white/10 transition flex items-center justify-center min-h-[46px] text-xs font-semibold gap-1.5 cursor-pointer"
-                      title="Copy direct stream link"
-                    >
-                      {copiedUrl === getFormattedUrl(primaryStreamUrl) || copiedUrl === primaryStreamUrl ? (
-                        <>
-                          <Check className="w-4 h-4 text-emerald-400" />
-                          <span className="text-emerald-400">Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-4 h-4" />
-                          <span>Copy</span>
-                        </>
-                      )}
-                    </button>
-                  </>
-                )}
+                  {/* Movie-only: Download M3U & Copy Link */}
+                  {!isSeries && (
+                    <>
+                      <a
+                        href={`/api/vlc/playlist?url=${encodeURIComponent(getFormattedUrl(primaryStreamUrl))}&title=${encodeURIComponent(primaryTitle)}`}
+                        download
+                        className="shrink-0 flex items-center justify-center gap-2 px-4 py-3 sm:py-3.5 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white border border-white/10 transition min-h-[46px] text-xs sm:text-sm font-semibold whitespace-nowrap active:scale-95 cursor-pointer"
+                        title="Download .m3u playlist file"
+                      >
+                        <Download className="w-4 h-4 shrink-0" />
+                        <span>Playlist</span>
+                      </a>
+
+                      <button
+                        onClick={() => handleCopy(getFormattedUrl(primaryStreamUrl))}
+                        className="shrink-0 flex items-center justify-center gap-2 px-4 py-3 sm:py-3.5 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white border border-white/10 transition min-h-[46px] text-xs sm:text-sm font-semibold whitespace-nowrap active:scale-95 cursor-pointer"
+                        title="Copy direct stream link"
+                      >
+                        {copiedUrl === getFormattedUrl(primaryStreamUrl) || copiedUrl === primaryStreamUrl ? (
+                          <>
+                            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span className="text-emerald-400">Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4 shrink-0" />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    </>
+                  )}
+
+                  {/* Trailing space for smooth end-of-scroll on mobile */}
+                  <div className="w-4 shrink-0 sm:hidden pointer-events-none" aria-hidden="true" />
+                </div>
               </div>
             </div>
 
@@ -805,7 +899,15 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
 
               {/* Season Selector Tabs */}
               {seasons.length > 1 && (
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar">
+                <div
+                  ref={seasonTabsRef}
+                  onMouseDown={handleSeasonsMouseDown}
+                  onMouseMove={handleSeasonsMouseMove}
+                  onMouseUp={handleSeasonsMouseUpOrLeave}
+                  onMouseLeave={handleSeasonsMouseUpOrLeave}
+                  onClickCapture={handleSeasonsClickCapture}
+                  className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar touch-pan-x overscroll-x-contain min-w-0 max-w-full scroll-smooth select-none cursor-grab active:cursor-grabbing"
+                >
                   {seasons.map((s) => {
                     const isSelected = s.seasonNumber === activeSeasonNumber;
                     return (
@@ -817,7 +919,7 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
                             setSelectedEpisode(s.episodes[0]);
                           }
                         }}
-                        className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition active:scale-95 whitespace-nowrap cursor-pointer ${
+                        className={`shrink-0 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition active:scale-95 whitespace-nowrap cursor-pointer ${
                           isSelected
                             ? "bg-[#e50914] text-white shadow-lg shadow-red-950/40"
                             : "bg-[#18181b] text-neutral-400 hover:text-white hover:bg-white/10 border border-white/5"

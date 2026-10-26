@@ -552,7 +552,7 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
 
                 {/* Season Selector Tabs (if multiple seasons) */}
                 {seasons.length > 1 && (
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar touch-pan-x overscroll-x-contain min-w-0 max-w-full scroll-smooth">
                     {seasons.map((s) => {
                       const isSelected = s.seasonNumber === activeSeasonNumber;
                       return (
@@ -564,7 +564,7 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                               setSelectedEpisode(s.episodes[0]);
                             }
                           }}
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition active:scale-95 whitespace-nowrap cursor-pointer ${
+                          className={`shrink-0 px-3 py-1 rounded-lg text-xs font-semibold transition active:scale-95 whitespace-nowrap cursor-pointer ${
                             isSelected
                               ? "bg-[#e50914] text-white shadow-md shadow-red-950/40"
                               : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10 border border-white/5"
