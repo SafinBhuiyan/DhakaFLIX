@@ -765,7 +765,7 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
                   onMouseUp={handleActionsMouseUpOrLeave}
                   onMouseLeave={handleActionsMouseUpOrLeave}
                   onClickCapture={handleActionsClickCapture}
-                  className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 -my-1 w-full sm:w-auto touch-pan-x overscroll-x-contain"
+                  className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 -my-1 w-full sm:w-auto"
                   style={{
                     WebkitOverflowScrolling: "touch",
                   }}
@@ -906,7 +906,7 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
                   onMouseUp={handleSeasonsMouseUpOrLeave}
                   onMouseLeave={handleSeasonsMouseUpOrLeave}
                   onClickCapture={handleSeasonsClickCapture}
-                  className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar touch-pan-x overscroll-x-contain min-w-0 max-w-full scroll-smooth select-none cursor-grab active:cursor-grabbing"
+                  className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar min-w-0 max-w-full"
                 >
                   {seasons.map((s) => {
                     const isSelected = s.seasonNumber === activeSeasonNumber;

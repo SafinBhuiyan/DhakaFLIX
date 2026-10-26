@@ -31,44 +31,6 @@ export function HomeMediaRail({
   const scrollRef = useRef<HTMLDivElement>(null);
   const sectionTitle = section.title || section.label || "Featured Collection";
 
-  // Desktop mouse drag-to-scroll support
-  const isDraggingRef = useRef(false);
-  const startXRef = useRef(0);
-  const scrollLeftRef = useRef(0);
-  const hasMovedRef = useRef(false);
-
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches)) return;
-    if (!scrollRef.current) return;
-    isDraggingRef.current = true;
-    hasMovedRef.current = false;
-    startXRef.current = e.pageX - scrollRef.current.offsetLeft;
-    scrollLeftRef.current = scrollRef.current.scrollLeft;
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDraggingRef.current || !scrollRef.current) return;
-    if (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches) return;
-    const x = e.pageX - scrollRef.current.offsetLeft;
-    const walk = (x - startXRef.current) * 1.5;
-    if (Math.abs(walk) > 5) {
-      hasMovedRef.current = true;
-    }
-    scrollRef.current.scrollLeft = scrollLeftRef.current - walk;
-  };
-
-  const handleMouseUpOrLeave = () => {
-    isDraggingRef.current = false;
-  };
-
-  const handleClickCapture = (e: React.MouseEvent) => {
-    if (hasMovedRef.current) {
-      e.preventDefault();
-      e.stopPropagation();
-      hasMovedRef.current = false;
-    }
-  };
-
   const handleScroll = (direction: "left" | "right") => {
     if (!scrollRef.current) return;
     const scrollAmount = direction === "left" ? -550 : 550;
@@ -123,12 +85,7 @@ export function HomeMediaRail({
       {/* Horizontal Carousel Shelf */}
       <div
         ref={scrollRef}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUpOrLeave}
-        onMouseLeave={handleMouseUpOrLeave}
-        onClickCapture={handleClickCapture}
-        className="flex gap-3 sm:gap-4 overflow-x-auto pb-3 pt-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden touch-pan-x overscroll-x-contain scroll-smooth min-w-0 max-w-full cursor-grab active:cursor-grabbing select-none"
+        className="flex gap-3 sm:gap-4 overflow-x-auto pb-3 pt-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {section.items.map((movie, idx) => (
           <div
