@@ -33,6 +33,7 @@ import { playInVlc } from "@/lib/vlc-player";
 import { isInWatchlist, toggleWatchlist } from "@/lib/user-store";
 import {
   formatStreamUrl,
+  getRelayUrl,
   getNetworkMode,
   setNetworkMode,
   checkDirectBdixAccess,
@@ -83,10 +84,12 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
   // Smart Network Mode State (Auto, Direct BDIX, or Relay)
   const [networkMode, setNetworkModeState] = useState<NetworkMode>("auto");
   const [isBdixDirect, setIsBdixDirect] = useState<boolean>(true);
+  const [hasRelayUrl, setHasRelayUrl] = useState<boolean>(false);
 
   // Sync Network Mode and probe direct BDIX reachability on mount
   useEffect(() => {
     setNetworkModeState(getNetworkMode());
+    setHasRelayUrl(Boolean(getRelayUrl()));
     checkDirectBdixAccess().then((direct) => {
       setIsBdixDirect(direct);
     });
@@ -97,10 +100,11 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
       networkMode === "auto" ? "direct" : networkMode === "direct" ? "relay" : "auto";
     setNetworkMode(next);
     setNetworkModeState(next);
+    setHasRelayUrl(Boolean(getRelayUrl()));
   };
 
   const isEffectiveRelay =
-    networkMode === "relay" || (networkMode === "auto" && !isBdixDirect);
+    networkMode === "relay" || (networkMode === "auto" && !isBdixDirect && hasRelayUrl);
 
   const getFormattedUrl = (url: string) => {
     return formatStreamUrl(url, isEffectiveRelay);

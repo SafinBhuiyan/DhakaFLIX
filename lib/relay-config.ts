@@ -2,7 +2,7 @@
 // Intelligently detects whether user has direct BDIX access (Home Wi-Fi)
 // or requires Helper Relay (Mobile Data / Off-network).
 
-const DEFAULT_RELAY_URL = "https://pole-mean-rent-pursuit.trycloudflare.com";
+const DEFAULT_RELAY_URL = "";
 const STORAGE_KEY_URL = "dhakaflix_helper_url";
 const STORAGE_KEY_MODE = "dhakaflix_network_mode"; // "auto" | "direct" | "relay"
 
@@ -40,22 +40,38 @@ export function unwrapStreamUrl(url: string): string {
 
 export function getRelayUrl(): string {
   if (typeof window !== "undefined") {
+    // 1. If currently loaded through a Cloudflare tunnel or ngrok,
+    // the current browser origin IS automatically the active relay!
+    const host = window.location.hostname.toLowerCase();
+    if (host.endsWith("trycloudflare.com") || host.includes("ngrok")) {
+      return window.location.origin.replace(/\/+$/, "");
+    }
+
+    // 2. Custom override from localStorage
     const custom = localStorage.getItem(STORAGE_KEY_URL);
     if (custom && custom.trim()) {
       const clean = custom.trim().replace(/\/+$/, "");
-      if (clean === DEFAULT_RELAY_URL) {
+      // Purge old expired quick tunnels
+      if (clean.includes("pole-mean-rent-pursuit")) {
+        localStorage.removeItem(STORAGE_KEY_URL);
+      } else {
         return clean;
       }
-      localStorage.removeItem(STORAGE_KEY_URL);
     }
   }
-  return DEFAULT_RELAY_URL.replace(/\/+$/, "");
+
+  // 3. Environment variable fallback
+  const envUrl = (process.env.NEXT_PUBLIC_HELPER_RELAY_URL || "").trim().replace(/\/+$/, "");
+  if (envUrl.includes("pole-mean-rent-pursuit")) {
+    return "";
+  }
+  return envUrl;
 }
 
 export function setRelayUrl(url: string): void {
   if (typeof window === "undefined") return;
   const clean = url.trim().replace(/\/+$/, "");
-  if (!clean || clean.includes("trycloudflare.com")) {
+  if (!clean || clean.includes("pole-mean-rent-pursuit")) {
     localStorage.removeItem(STORAGE_KEY_URL);
   } else {
     localStorage.setItem(STORAGE_KEY_URL, clean);
@@ -83,10 +99,20 @@ export function isRelayEnabled(): boolean {
   const mode = getNetworkMode();
   if (mode === "direct") return false;
   if (mode === "relay") return true;
-  // In auto mode, if direct BDIX is cached as reachable, relay is NOT enabled
+
+  // In auto mode, if we're on a tunnel domain, relay is active
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname.toLowerCase();
+    if (host.endsWith("trycloudflare.com") || host.includes("ngrok")) {
+      return true;
+    }
+  }
+
+  // In auto mode, if direct BDIX is reachable or we're on LAN, relay is NOT enabled
   if (cachedDirectBdixStatus && cachedDirectBdixStatus.reachable) {
     return false;
   }
+
   return Boolean(getRelayUrl());
 }
 
@@ -95,8 +121,8 @@ export function setRelayEnabled(enabled: boolean): void {
 }
 
 /**
- * Checks if the client browser has direct local access to BDIX storage nodes (172.16.50.x).
- * Runs a strict 1.2-second probe. Only resolves true if BDIX is reachable on the local network.
+ * Checks if the client has direct local access to BDIX storage nodes (172.16.50.x).
+ * Runs a strict probe. On home Wi-Fi or LAN, returns true. On mobile data/tunnel, returns false.
  */
 export async function checkDirectBdixAccess(forceCheck = false): Promise<boolean> {
   if (typeof window === "undefined") return false;
@@ -106,17 +132,40 @@ export async function checkDirectBdixAccess(forceCheck = false): Promise<boolean
     return cachedDirectBdixStatus.reachable;
   }
 
-  // If frontend is served over HTTPS, mixed-content prevents direct HTTP to 172.16.50.4
-  if (window.location.protocol === "https:") {
+  const host = window.location.hostname.toLowerCase();
+  const isLocalNetwork =
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "[::1]" ||
+    host.startsWith("192.168.") ||
+    host.startsWith("10.") ||
+    host.startsWith("172.16.");
+
+  // If running via a public tunnel (trycloudflare/ngrok), the user is accessing remotely via Mobile Data
+  if (host.endsWith("trycloudflare.com") || host.includes("ngrok")) {
     cachedDirectBdixStatus = { reachable: false, timestamp: Date.now() };
     return false;
+  }
+
+  // If accessed via local LAN IP (e.g. http://192.168.10.112:3000), client is on Home Wi-Fi
+  if (isLocalNetwork) {
+    cachedDirectBdixStatus = { reachable: true, timestamp: Date.now() };
+    return true;
+  }
+
+  // If accessed over HTTPS (e.g. Vercel deployment on home Wi-Fi), browser mixed content
+  // blocks client-side fetch() to http://172.16.50.4, BUT external player (VLC on Android/iOS)
+  // can directly stream HTTP BDIX without mixed content restrictions!
+  if (window.location.protocol === "https:") {
+    cachedDirectBdixStatus = { reachable: true, timestamp: Date.now() };
+    return true;
   }
 
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 1200);
 
-    // Strict no-cors fetch probe:
+    // Strict no-cors fetch probe on HTTP:
     // On Wi-Fi: 172.16.50.4 responds in <50ms, fetch resolves opaque response.
     // On Mobile Data: 172.16.50.x is not routed, carrier rejects or times out, fetch throws.
     await fetch("http://172.16.50.4/favicon.ico", {
@@ -151,45 +200,7 @@ export async function checkRelayHealth(url?: string): Promise<boolean> {
   }
 }
 
-/**
- * Transforms direct BDIX URLs (172.16.50.x) to route via the helper relay
- * only when required (on mobile data, off-network, or forced relay).
- */
-export function formatStreamUrl(streamUrl: string, forceRelay?: boolean): string {
-  if (!streamUrl || typeof streamUrl !== "string") return "";
-
-  // 0. Unwrap any existing tunneled/proxied URL to get the canonical BDIX target
-  const canonicalUrl = unwrapStreamUrl(streamUrl);
-
-  // 1. Must be a direct BDIX URL (starts with http://172.16.50. or https://172.16.50.)
-  const isDirectBdix = /^https?:\/\/172\.16\.50\./i.test(canonicalUrl.trim());
-  if (!isDirectBdix) return canonicalUrl;
-
-  const relay = getRelayUrl();
-
-  // If forceRelay is explicitly false, return canonical BDIX
-  if (forceRelay === false) {
-    return canonicalUrl;
-  }
-
-  const mode = getNetworkMode();
-  if (mode === "direct" && forceRelay !== true) {
-    return canonicalUrl;
-  }
-
-  // In auto mode, if direct BDIX is verified reachable, use the blazing-fast direct stream!
-  if (mode === "auto" && forceRelay !== true) {
-    if (cachedDirectBdixStatus && cachedDirectBdixStatus.reachable) {
-      return canonicalUrl;
-    }
-  }
-
-  // If relay is needed and available, wrap it
-  if (!relay) {
-    return canonicalUrl;
-  }
-
-  // Extract clean file name with extension
+function buildRelayUrl(relay: string, canonicalUrl: string): string {
   let ext = "mp4";
   const lower = canonicalUrl.toLowerCase();
   if (lower.includes(".mkv")) ext = "mkv";
@@ -209,5 +220,67 @@ export function formatStreamUrl(streamUrl: string, forceRelay?: boolean): string
   } catch {}
 
   const safeFileName = `${baseName}.${ext}`;
-  return `${relay}/stream/${safeFileName}?url=${encodeURIComponent(canonicalUrl)}`;
+  const cleanRelay = relay.replace(/\/+$/, "");
+  return `${cleanRelay}/stream/${safeFileName}?url=${encodeURIComponent(canonicalUrl)}`;
+}
+
+/**
+ * Transforms direct BDIX URLs (172.16.50.x) to route via the helper relay
+ * only when required (on mobile data, off-network, or forced relay).
+ * In Auto or Wi-Fi mode, direct BDIX URLs are preserved for maximum speed.
+ */
+export function formatStreamUrl(streamUrl: string, forceRelay?: boolean): string {
+  if (!streamUrl || typeof streamUrl !== "string") return "";
+
+  // 0. Unwrap any existing tunneled/proxied URL to get the canonical BDIX target
+  const canonicalUrl = unwrapStreamUrl(streamUrl);
+
+  // 1. Must be a direct BDIX URL (starts with http://172.16.50. or https://172.16.50.)
+  const isDirectBdix = /^https?:\/\/172\.16\.50\./i.test(canonicalUrl.trim());
+  if (!isDirectBdix) return canonicalUrl;
+
+  // If forceRelay is explicitly false, return canonical BDIX
+  if (forceRelay === false) {
+    return canonicalUrl;
+  }
+
+  const mode = getNetworkMode();
+  if (mode === "direct" && forceRelay !== true) {
+    return canonicalUrl;
+  }
+
+  const relay = getRelayUrl();
+
+  // If no relay is available, fallback to canonical direct BDIX
+  if (!relay) {
+    return canonicalUrl;
+  }
+
+  // Explicit relay mode
+  if (mode === "relay" || forceRelay === true) {
+    return buildRelayUrl(relay, canonicalUrl);
+  }
+
+  // In auto mode:
+  if (mode === "auto") {
+    // If currently running through a tunnel, we are on mobile data / off-network:
+    if (typeof window !== "undefined") {
+      const host = window.location.hostname.toLowerCase();
+      if (host.endsWith("trycloudflare.com") || host.includes("ngrok")) {
+        return buildRelayUrl(relay, canonicalUrl);
+      }
+      // If client is on local LAN (localhost or 192.168.x.x), direct BDIX works!
+      if (host === "localhost" || host === "127.0.0.1" || host.startsWith("192.168.") || host.startsWith("10.")) {
+        return canonicalUrl;
+      }
+    }
+
+    // If direct BDIX status was probed and verified reachable, use direct BDIX!
+    if (cachedDirectBdixStatus && cachedDirectBdixStatus.reachable) {
+      return canonicalUrl;
+    }
+  }
+
+  // Fallback: if relay is configured and BDIX is unreachable, wrap with relay
+  return buildRelayUrl(relay, canonicalUrl);
 }

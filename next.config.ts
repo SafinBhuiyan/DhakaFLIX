@@ -15,11 +15,13 @@ const nextConfig: NextConfig = {
     "192.168.10.112",
     "localhost",
     "127.0.0.1",
-    "*.trycloudflare.com",
-    "pole-mean-rent-pursuit.trycloudflare.com"
+    "*.trycloudflare.com"
   ],
   outputFileTracingIncludes: {
     "/api/**/*": ["./public/catalog/**/*"],
+  },
+  experimental: {
+    agentUpgrade: "security",
   },
 };
 

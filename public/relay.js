@@ -1,8 +1,9 @@
-const http = require('http');
-const https = require('https');
+import http from 'http';
+import https from 'https';
+import net from 'net';
 
 const PORT = 8080;
-const NEXTJS_HOST = '192.168.10.112';
+const NEXTJS_HOST = process.env.NEXTJS_HOST || '127.0.0.1';
 const NEXTJS_PORT = 3000;
 
 // High-performance persistent connection agent (eliminates TCP handshake delay on seeks)
@@ -135,7 +136,7 @@ function streamVideo(targetUrl, req, res) {
   }
 }
 
-const net = require('net');
+
 
 // Reverse-proxy frontend requests to Next.js on 192.168.10.112:3000
 function proxyToNextJs(req, res) {

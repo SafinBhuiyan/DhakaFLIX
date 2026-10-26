@@ -25,6 +25,7 @@ import { VlcIcon } from "@/components/vlc-icon";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import {
   formatStreamUrl,
+  getRelayUrl,
   getNetworkMode,
   setNetworkMode,
   checkDirectBdixAccess,
@@ -73,16 +74,26 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
   // Smart Network Mode State (Auto, Direct BDIX, or Relay)
   const [networkMode, setNetworkModeState] = useState<NetworkMode>("auto");
   const [isBdixDirect, setIsBdixDirect] = useState<boolean>(true);
+  const [hasRelayUrl, setHasRelayUrl] = useState<boolean>(false);
+
+  useEffect(() => {
+    setNetworkModeState(getNetworkMode());
+    setHasRelayUrl(Boolean(getRelayUrl()));
+    checkDirectBdixAccess().then((direct) => {
+      setIsBdixDirect(direct);
+    });
+  }, [movie?.id]);
 
   const toggleNetworkMode = () => {
     const next: NetworkMode =
       networkMode === "auto" ? "direct" : networkMode === "direct" ? "relay" : "auto";
     setNetworkMode(next);
     setNetworkModeState(next);
+    setHasRelayUrl(Boolean(getRelayUrl()));
   };
 
   const isEffectiveRelay =
-    networkMode === "relay" || (networkMode === "auto" && !isBdixDirect);
+    networkMode === "relay" || (networkMode === "auto" && !isBdixDirect && hasRelayUrl);
 
   const getFormattedUrl = (url: string) => {
     return formatStreamUrl(url, isEffectiveRelay);
