@@ -403,12 +403,12 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                   {isEffectiveRelay ? (
                     <>
                       <Shield className="w-3 h-3 text-purple-400 shrink-0" />
-                      <span>Running over Data</span>
+                      <span>Data</span>
                     </>
                   ) : (
                     <>
                       <Zap className="w-3 h-3 text-amber-400 shrink-0" />
-                      <span>Running on Wi-Fi</span>
+                      <span>Wi-Fi</span>
                     </>
                   )}
                 </span>

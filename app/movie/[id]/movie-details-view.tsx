@@ -610,12 +610,12 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
                 {isEffectiveRelay ? (
                   <>
                     <Shield className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                    <span>Running over Data</span>
+                    <span>Data</span>
                   </>
                 ) : (
                   <>
                     <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span>Running on Wi-Fi</span>
+                    <span>Wi-Fi</span>
                   </>
                 )}
               </span>
