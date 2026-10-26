@@ -61,7 +61,7 @@ export function getRelayUrl(): string {
         const urlParam = params.get("relay");
         if (urlParam && /^https?:\/\//i.test(urlParam)) {
           const cleanParam = urlParam.trim().replace(/\/+$/, "");
-          if (!cleanParam.includes("pole-mean-rent-pursuit")) {
+          if (!cleanParam.includes("pole-mean-rent-pursuit") && !cleanParam.includes("traveling-present-snap-divx")) {
             localStorage.setItem(STORAGE_KEY_URL, cleanParam);
             // Cleanly remove ?relay= from browser address bar
             const cleanUrl = new URL(window.location.href);
@@ -85,7 +85,7 @@ export function getRelayUrl(): string {
     if (custom && custom.trim()) {
       const clean = custom.trim().replace(/\/+$/, "");
       // Purge old expired quick tunnels
-      if (clean.includes("pole-mean-rent-pursuit")) {
+      if (clean.includes("pole-mean-rent-pursuit") || clean.includes("traveling-present-snap-divx")) {
         localStorage.removeItem(STORAGE_KEY_URL);
       } else {
         return clean;
@@ -95,7 +95,7 @@ export function getRelayUrl(): string {
 
   // 3. Environment variable fallback or permanent homelab relay
   const envUrl = (process.env.NEXT_PUBLIC_HELPER_RELAY_URL || DEFAULT_RELAY_URL).trim().replace(/\/+$/, "");
-  if (envUrl.includes("pole-mean-rent-pursuit") || envUrl.includes("tail4054ff.ts.net")) {
+  if (envUrl.includes("pole-mean-rent-pursuit") || envUrl.includes("traveling-present-snap-divx") || envUrl.includes("tail4054ff.ts.net")) {
     return DEFAULT_RELAY_URL;
   }
   return envUrl || DEFAULT_RELAY_URL;
