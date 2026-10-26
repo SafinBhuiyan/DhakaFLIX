@@ -112,11 +112,6 @@ export function setRelayUrl(url: string): void {
 }
 
 export function getNetworkMode(): NetworkMode {
-  if (typeof window === "undefined") return "auto";
-  const mode = localStorage.getItem(STORAGE_KEY_MODE) as NetworkMode | null;
-  if (mode === "direct" || mode === "relay" || mode === "auto") {
-    return mode;
-  }
   return "auto";
 }
 

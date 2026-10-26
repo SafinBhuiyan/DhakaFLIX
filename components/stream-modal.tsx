@@ -72,28 +72,20 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
   } | null>(null);
 
   // Smart Network Mode State (Auto, Direct BDIX, or Relay)
-  const [networkMode, setNetworkModeState] = useState<NetworkMode>("auto");
   const [isBdixDirect, setIsBdixDirect] = useState<boolean>(true);
   const [hasRelayUrl, setHasRelayUrl] = useState<boolean>(false);
 
   useEffect(() => {
-    setNetworkModeState(getNetworkMode());
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("dhakaflix_network_mode");
+    }
     setHasRelayUrl(Boolean(getRelayUrl()));
     checkDirectBdixAccess().then((direct) => {
       setIsBdixDirect(direct);
     });
   }, [movie?.id]);
 
-  const toggleNetworkMode = () => {
-    const next: NetworkMode =
-      networkMode === "auto" ? "direct" : networkMode === "direct" ? "relay" : "auto";
-    setNetworkMode(next);
-    setNetworkModeState(next);
-    setHasRelayUrl(Boolean(getRelayUrl()));
-  };
-
-  const isEffectiveRelay =
-    networkMode === "relay" || (networkMode === "auto" && !isBdixDirect && hasRelayUrl);
+  const isEffectiveRelay = !isBdixDirect && hasRelayUrl;
 
   const getFormattedUrl = (url: string) => {
     return formatStreamUrl(url, isEffectiveRelay);
@@ -126,8 +118,6 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
     setTrailerOpen(false);
     setTrailerData(null);
 
-    const currentMode = getNetworkMode();
-    setNetworkModeState(currentMode);
     checkDirectBdixAccess().then((direct) => {
       setIsBdixDirect(direct);
     });
@@ -403,28 +393,25 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                 </span>
 
                 <span className="text-neutral-600">•</span>
-                <button
-                  type="button"
-                  onClick={toggleNetworkMode}
-                  className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold transition cursor-pointer active:scale-95 bg-white/5 hover:bg-white/10 border border-white/10"
-                  title={`Mode: ${networkMode.toUpperCase()} (Click to toggle: Auto -> Direct BDIX -> Relay)`}
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
+                    isEffectiveRelay
+                      ? "bg-purple-950/40 border-purple-500/30 text-purple-300"
+                      : "bg-amber-950/40 border-amber-500/30 text-amber-300"
+                  }`}
                 >
                   {isEffectiveRelay ? (
                     <>
                       <Shield className="w-3 h-3 text-purple-400 shrink-0" />
-                      <span className="text-purple-300">
-                        {networkMode === "relay" ? "Forced Relay" : "Relay (Mobile)"}
-                      </span>
+                      <span>Running over Data</span>
                     </>
                   ) : (
                     <>
                       <Zap className="w-3 h-3 text-amber-400 shrink-0" />
-                      <span className="text-amber-300">
-                        {networkMode === "direct" ? "Direct BDIX" : "Direct (Wi-Fi)"}
-                      </span>
+                      <span>Running on Wi-Fi</span>
                     </>
                   )}
-                </button>
+                </span>
               </div>
             </div>
           </div>

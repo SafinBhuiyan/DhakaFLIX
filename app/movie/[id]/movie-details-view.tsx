@@ -81,14 +81,16 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
     youtubeUrl?: string;
   } | null>(null);
 
-  // Smart Network Mode State (Auto, Direct BDIX, or Relay)
-  const [networkMode, setNetworkModeState] = useState<NetworkMode>("auto");
+  // Automatic Network Detection (Wi-Fi vs Mobile Data)
   const [isBdixDirect, setIsBdixDirect] = useState<boolean>(true);
   const [hasRelayUrl, setHasRelayUrl] = useState<boolean>(false);
 
-  // Sync Network Mode and probe direct BDIX reachability on mount
+  // Probe direct BDIX reachability and listen for network changes
   useEffect(() => {
-    setNetworkModeState(getNetworkMode());
+    // Clear any past manual override so it is always 100% automatic
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("dhakaflix_network_mode");
+    }
     setHasRelayUrl(Boolean(getRelayUrl()));
     checkDirectBdixAccess().then((direct) => {
       setIsBdixDirect(direct);
@@ -107,25 +109,7 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
     }
   }, [id]);
 
-  const toggleNetworkMode = () => {
-    const next: NetworkMode =
-      networkMode === "auto" ? "direct" : networkMode === "direct" ? "relay" : "auto";
-    setNetworkMode(next);
-    setNetworkModeState(next);
-    setHasRelayUrl(Boolean(getRelayUrl()));
-    showToast({
-      text:
-        next === "direct"
-          ? "Switched to Direct BDIX (Fastest for Wi-Fi)"
-          : next === "relay"
-          ? "Switched to Relay Mode (For 4G Mobile Data)"
-          : "Switched to Smart Auto-Detect Mode",
-      type: "success",
-    });
-  };
-
-  const isEffectiveRelay =
-    networkMode === "relay" || (networkMode === "auto" && !isBdixDirect && hasRelayUrl);
+  const isEffectiveRelay = !isBdixDirect && hasRelayUrl;
 
   const getFormattedUrl = (url: string) => {
     return formatStreamUrl(url, isEffectiveRelay);
@@ -616,28 +600,25 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
               </span>
 
               <span className="text-neutral-600">•</span>
-              <button
-                type="button"
-                onClick={toggleNetworkMode}
-                className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold transition cursor-pointer active:scale-95 bg-white/5 hover:bg-white/10 border border-white/10"
-                title={`Streaming Mode: ${networkMode.toUpperCase()} (Click to toggle: Auto -> Direct BDIX -> Relay)`}
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold border ${
+                  isEffectiveRelay
+                    ? "bg-purple-950/40 border-purple-500/30 text-purple-300"
+                    : "bg-amber-950/40 border-amber-500/30 text-amber-300"
+                }`}
               >
                 {isEffectiveRelay ? (
                   <>
                     <Shield className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                    <span className="text-purple-300">
-                      {networkMode === "relay" ? "Forced Relay" : "Relay (Mobile)"}
-                    </span>
+                    <span>Running over Data</span>
                   </>
                 ) : (
                   <>
                     <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="text-amber-300">
-                      {networkMode === "direct" ? "Direct BDIX" : "Direct (Wi-Fi)"}
-                    </span>
+                    <span>Running on Wi-Fi</span>
                   </>
                 )}
-              </button>
+              </span>
             </div>
 
             {/* Mobile-Friendly Action Buttons */}
