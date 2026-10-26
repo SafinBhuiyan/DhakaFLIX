@@ -2,7 +2,7 @@
 // Intelligently detects whether user has direct BDIX access (Home Wi-Fi)
 // or requires Helper Relay (Mobile Data / Off-network).
 
-const DEFAULT_RELAY_URL = "";
+const DEFAULT_RELAY_URL = "https://homelab-1.tail4054ff.ts.net";
 const STORAGE_KEY_URL = "dhakaflix_helper_url";
 const STORAGE_KEY_MODE = "dhakaflix_network_mode"; // "auto" | "direct" | "relay"
 
@@ -80,12 +80,12 @@ export function getRelayUrl(): string {
     }
   }
 
-  // 3. Environment variable fallback
-  const envUrl = (process.env.NEXT_PUBLIC_HELPER_RELAY_URL || "").trim().replace(/\/+$/, "");
+  // 3. Environment variable fallback or permanent homelab relay
+  const envUrl = (process.env.NEXT_PUBLIC_HELPER_RELAY_URL || DEFAULT_RELAY_URL).trim().replace(/\/+$/, "");
   if (envUrl.includes("pole-mean-rent-pursuit")) {
-    return "";
+    return DEFAULT_RELAY_URL;
   }
-  return envUrl;
+  return envUrl || DEFAULT_RELAY_URL;
 }
 
 export function setRelayUrl(url: string): void {
