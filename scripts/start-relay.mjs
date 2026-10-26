@@ -70,9 +70,35 @@ function scanForTunnelUrl(chunk) {
     const publicUrl = match[0];
 
     const unifiedUrl = `https://dhaka-flix-green.vercel.app/?relay=${publicUrl}`;
+    const qrImage = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(unifiedUrl)}`;
 
     try {
-      fs.writeFileSync("active-mobile-url.txt", unifiedUrl, "utf8");
+      const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>DhakaFLIX Mobile 4G Quick Connect</title>
+  <style>
+    body { background: #0f0f12; color: #fff; font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; text-align: center; }
+    .card { background: #1a1a20; padding: 32px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 40px rgba(0,0,0,0.5); max-width: 400px; }
+    h2 { margin: 0 0 8px 0; color: #e50914; font-size: 22px; }
+    p { color: #888; font-size: 14px; margin-bottom: 24px; }
+    img { border-radius: 16px; background: white; padding: 12px; }
+    .url { word-break: break-all; margin-top: 20px; font-size: 12px; color: #aaa; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>DhakaFLIX 4G High-Speed Stream</h2>
+    <p>Scan with your phone camera to stream over 4G Mobile Data:</p>
+    <img src="${qrImage}" width="260" height="260" alt="Scan with Phone Camera" />
+    <div class="url"><a href="${unifiedUrl}" target="_blank" style="color: #e50914;">${unifiedUrl}</a></div>
+  </div>
+</body>
+</html>`;
+      fs.writeFileSync("scan-to-stream.html", htmlContent, "utf8");
+      // Open in default browser on PC
+      spawn("cmd", ["/c", "start", "scan-to-stream.html"], { stdio: "ignore" });
     } catch {}
 
     console.log("\n==============================================================");
