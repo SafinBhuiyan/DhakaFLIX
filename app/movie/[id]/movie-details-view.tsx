@@ -160,15 +160,18 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
   };
 
   // Automatic Network Detection (Wi-Fi vs Mobile Data)
-  const [isBdixDirect, setIsBdixDirect] = useState<boolean>(true);
+  const [isBdixDirect, setIsBdixDirect] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const mode = getNetworkMode();
+      if (mode === "direct") return true;
+      if (mode === "relay") return false;
+    }
+    return true;
+  });
   const [hasRelayUrl, setHasRelayUrl] = useState<boolean>(false);
 
   // Probe direct BDIX reachability and listen for network changes
   useEffect(() => {
-    // Clear any past manual override so it is always 100% automatic
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("dhakaflix_network_mode");
-    }
     setHasRelayUrl(Boolean(getRelayUrl()));
     checkDirectBdixAccess().then((direct) => {
       setIsBdixDirect(direct);
@@ -191,6 +194,43 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
 
   const getFormattedUrl = (url: string) => {
     return formatStreamUrl(url, isEffectiveRelay);
+  };
+
+  const handleToggleNetworkMode = () => {
+    const nextRelay = !isEffectiveRelay;
+    const nextMode: NetworkMode = nextRelay ? "relay" : "direct";
+    setNetworkMode(nextMode);
+    setIsBdixDirect(!nextRelay);
+    showToast({
+      text: nextRelay
+        ? "Switched to Relay Mode (Works on all Wi-Fi & Mobile Data)"
+        : "Switched to Direct Wi-Fi Mode (Max BDIX Speed for supported ISPs)",
+      type: "success",
+    });
+  };
+
+  const handleDownloadClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    streamUrl: string,
+    title: string
+  ) => {
+    const formatted = getFormattedUrl(streamUrl);
+    const finalDownloadUrl = isEffectiveRelay
+      ? `${formatted}${formatted.includes("?") ? "&" : "?"}download=1`
+      : formatted;
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(finalDownloadUrl);
+      }
+    } catch {}
+
+    showToast({
+      text: isEffectiveRelay
+        ? `Downloading "${title}"... Direct link copied for 1DM/ADM!`
+        : `Downloading "${title}"... Direct link copied! If download stalls, tap the network badge to switch to Relay.`,
+      type: "success",
+    });
   };
 
   const showToast = useCallback((msg: { text: string; type: "success" | "error" }) => {
@@ -678,25 +718,30 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
               </span>
 
               <span className="text-neutral-600">•</span>
-              <span
-                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold border ${
+              <button
+                type="button"
+                onClick={handleToggleNetworkMode}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border transition active:scale-95 cursor-pointer ${
                   isEffectiveRelay
-                    ? "bg-purple-950/40 border-purple-500/30 text-purple-300"
-                    : "bg-amber-950/40 border-amber-500/30 text-amber-300"
+                    ? "bg-purple-950/40 border-purple-500/30 text-purple-300 hover:bg-purple-900/50"
+                    : "bg-amber-950/40 border-amber-500/30 text-amber-300 hover:bg-amber-900/50"
                 }`}
+                title="Tap to switch network mode (Direct Wi-Fi vs Relay Tunnel)"
               >
                 {isEffectiveRelay ? (
                   <>
                     <Shield className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                    <span>Data</span>
+                    <span>Data / Relay</span>
+                    <span className="text-[10px] text-purple-400/80 font-normal underline ml-0.5">Switch</span>
                   </>
                 ) : (
                   <>
                     <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span>Wi-Fi</span>
+                    <span>Direct Wi-Fi</span>
+                    <span className="text-[10px] text-amber-400/80 font-normal underline ml-0.5">Switch</span>
                   </>
                 )}
-              </span>
+              </button>
             </div>
 
             {/* Mobile-Friendly Action Buttons */}
@@ -742,6 +787,9 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
                 <a
                   href={`${getFormattedUrl(primaryStreamUrl)}${isEffectiveRelay ? "&download=1" : ""}`}
                   download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => handleDownloadClick(e, primaryStreamUrl, primaryTitle)}
                   className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 sm:px-6 py-3.5 rounded-xl bg-neutral-800/90 hover:bg-neutral-700 text-white text-sm font-bold border border-white/10 hover:border-white/20 transition min-h-[48px] active:scale-95 shadow-lg shadow-black/40 cursor-pointer shrink-0"
                   title={
                     isSeries && activeEpisode
@@ -1069,7 +1117,12 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
                           <a
                             href={`${getFormattedUrl(ep.streamUrl)}${isEffectiveRelay ? "&download=1" : ""}`}
                             download
-                            onClick={(e) => e.stopPropagation()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownloadClick(e, ep.streamUrl, `${movie.title} S${activeSeasonNumber}E${ep.episodeNumber}`);
+                            }}
                             className="p-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 transition flex items-center justify-center min-w-[30px] min-h-[30px] cursor-pointer"
                             title={`Download Episode ${ep.episodeNumber} (${ep.fileSize || "Video"})`}
                           >

@@ -2,7 +2,7 @@
 // Intelligently detects whether user has direct BDIX access (Home Wi-Fi)
 // or requires Helper Relay (Mobile Data / Off-network).
 
-const DEFAULT_RELAY_URL = "https://homelab-1.tail4054ff.ts.net";
+const DEFAULT_RELAY_URL = "https://traveling-present-snap-divx.trycloudflare.com";
 const STORAGE_KEY_URL = "dhakaflix_helper_url";
 const STORAGE_KEY_MODE = "dhakaflix_network_mode"; // "auto" | "direct" | "relay"
 
@@ -95,7 +95,7 @@ export function getRelayUrl(): string {
 
   // 3. Environment variable fallback or permanent homelab relay
   const envUrl = (process.env.NEXT_PUBLIC_HELPER_RELAY_URL || DEFAULT_RELAY_URL).trim().replace(/\/+$/, "");
-  if (envUrl.includes("pole-mean-rent-pursuit")) {
+  if (envUrl.includes("pole-mean-rent-pursuit") || envUrl.includes("tail4054ff.ts.net")) {
     return DEFAULT_RELAY_URL;
   }
   return envUrl || DEFAULT_RELAY_URL;
@@ -104,7 +104,7 @@ export function getRelayUrl(): string {
 export function setRelayUrl(url: string): void {
   if (typeof window === "undefined") return;
   const clean = url.trim().replace(/\/+$/, "");
-  if (!clean || clean.includes("pole-mean-rent-pursuit")) {
+  if (!clean || clean.includes("pole-mean-rent-pursuit") || clean.includes("tail4054ff.ts.net")) {
     localStorage.removeItem(STORAGE_KEY_URL);
   } else {
     localStorage.setItem(STORAGE_KEY_URL, clean);
@@ -112,12 +112,22 @@ export function setRelayUrl(url: string): void {
 }
 
 export function getNetworkMode(): NetworkMode {
+  if (typeof window !== "undefined") {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_MODE);
+      if (saved === "direct" || saved === "relay" || saved === "auto") {
+        return saved as NetworkMode;
+      }
+    } catch {}
+  }
   return "auto";
 }
 
 export function setNetworkMode(mode: NetworkMode): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY_MODE, mode);
+  try {
+    localStorage.setItem(STORAGE_KEY_MODE, mode);
+  } catch {}
   // Reset cache on manual change
   cachedDirectBdixStatus = null;
 }
@@ -150,10 +160,17 @@ export function setRelayEnabled(enabled: boolean): void {
 
 /**
  * Checks if the client has direct local access to BDIX storage nodes (172.16.50.x).
- * Runs a strict probe. On home Wi-Fi or LAN, returns true. On mobile data/tunnel, returns false.
+ * Runs an intelligent network probe.
+ * On local LAN, returns true.
+ * On public internet (Vercel) / Mobile Data / foreign Wi-Fi, routes via Relay tunnel
+ * so all devices and phones worldwide can stream & download without error.
  */
 export async function checkDirectBdixAccess(forceCheck = false): Promise<boolean> {
   if (typeof window === "undefined") return false;
+
+  const mode = getNetworkMode();
+  if (mode === "direct") return true;
+  if (mode === "relay") return false;
 
   const now = Date.now();
   if (!forceCheck && cachedDirectBdixStatus && (now - cachedDirectBdixStatus.timestamp) < CACHE_TTL_MS) {
@@ -182,7 +199,6 @@ export async function checkDirectBdixAccess(forceCheck = false): Promise<boolean
   }
 
   // 3. Network Information API (Android Chrome, Edge, Samsung Internet, Brave)
-  // Directly detects whether the mobile device is currently on 4G/5G Cellular data vs Home Wi-Fi
   try {
     const nav = navigator as any;
     const connection = nav?.connection || nav?.mozConnection || nav?.webkitConnection;
@@ -192,20 +208,21 @@ export async function checkDirectBdixAccess(forceCheck = false): Promise<boolean
         cachedDirectBdixStatus = { reachable: false, timestamp: Date.now() };
         return false;
       }
-      if (connection.type === "wifi" || connection.type === "ethernet") {
-        // Active Home Wi-Fi / Ethernet: BDIX direct access available!
-        cachedDirectBdixStatus = { reachable: true, timestamp: Date.now() };
-        return true;
-      }
     }
   } catch {}
 
-  // 4. Fallback for browsers without Network Information API:
-  // If a verified helper relay is configured, assume remote/cellular safety on HTTPS.
-  // Otherwise, default to direct BDIX.
+  // 4. On public HTTPS deployment (e.g. https://dhaka-flix-green.vercel.app):
+  // Private IP 172.16.50.14 is unroutable on external Wi-Fi networks (and blocked as mixed content on Chrome).
+  // If a public helper relay is configured, default to Relay so EVERY phone on any Wi-Fi works!
+  // Supported BDIX ISP users can tap the Wi-Fi badge to switch to Direct mode anytime.
   const hasRelay = Boolean(getRelayUrl());
-  cachedDirectBdixStatus = { reachable: !hasRelay, timestamp: Date.now() };
-  return !hasRelay;
+  if (hasRelay) {
+    cachedDirectBdixStatus = { reachable: false, timestamp: Date.now() };
+    return false;
+  }
+
+  cachedDirectBdixStatus = { reachable: true, timestamp: Date.now() };
+  return true;
 }
 
 export async function checkRelayHealth(url?: string): Promise<boolean> {

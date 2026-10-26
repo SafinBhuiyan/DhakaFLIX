@@ -72,13 +72,18 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
   } | null>(null);
 
   // Smart Network Mode State (Auto, Direct BDIX, or Relay)
-  const [isBdixDirect, setIsBdixDirect] = useState<boolean>(true);
+  const [isBdixDirect, setIsBdixDirect] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const mode = getNetworkMode();
+      if (mode === "direct") return true;
+      if (mode === "relay") return false;
+    }
+    return true;
+  });
   const [hasRelayUrl, setHasRelayUrl] = useState<boolean>(false);
+  const [modalToast, setModalToast] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("dhakaflix_network_mode");
-    }
     setHasRelayUrl(Boolean(getRelayUrl()));
     checkDirectBdixAccess().then((direct) => {
       setIsBdixDirect(direct);
@@ -89,6 +94,45 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
 
   const getFormattedUrl = (url: string) => {
     return formatStreamUrl(url, isEffectiveRelay);
+  };
+
+  const handleToggleNetworkMode = () => {
+    const nextRelay = !isEffectiveRelay;
+    const nextMode: NetworkMode = nextRelay ? "relay" : "direct";
+    setNetworkMode(nextMode);
+    setIsBdixDirect(!nextRelay);
+    setModalToast(
+      nextRelay
+        ? "Switched to Relay Mode (Works on all Wi-Fi & Mobile Data)"
+        : "Switched to Direct Wi-Fi Mode (Max BDIX Speed for supported ISPs)"
+    );
+    setTimeout(() => setModalToast(null), 3500);
+  };
+
+  const handleDownloadClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    streamUrl: string,
+    title: string
+  ) => {
+    const formatted = getFormattedUrl(streamUrl);
+    const finalDownloadUrl = isEffectiveRelay
+      ? `${formatted}${formatted.includes("?") ? "&" : "?"}download=1`
+      : formatted;
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(finalDownloadUrl);
+        setCopiedUrl(finalDownloadUrl);
+        setTimeout(() => setCopiedUrl(null), 2500);
+      }
+    } catch {}
+
+    setModalToast(
+      isEffectiveRelay
+        ? `Downloading "${title}"... Direct link copied for 1DM/ADM!`
+        : `Downloading "${title}"... Direct link copied! If download stalls, tap network badge to switch to Relay.`
+    );
+    setTimeout(() => setModalToast(null), 4000);
   };
 
   // Close on Escape key (trailer first, then modal)
@@ -393,25 +437,30 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                 </span>
 
                 <span className="text-neutral-600">•</span>
-                <span
-                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
+                <button
+                  type="button"
+                  onClick={handleToggleNetworkMode}
+                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold border transition active:scale-95 cursor-pointer ${
                     isEffectiveRelay
-                      ? "bg-purple-950/40 border-purple-500/30 text-purple-300"
-                      : "bg-amber-950/40 border-amber-500/30 text-amber-300"
+                      ? "bg-purple-950/40 border-purple-500/30 text-purple-300 hover:bg-purple-900/50"
+                      : "bg-amber-950/40 border-amber-500/30 text-amber-300 hover:bg-amber-900/50"
                   }`}
+                  title="Tap to switch network mode (Direct Wi-Fi vs Relay Tunnel)"
                 >
                   {isEffectiveRelay ? (
                     <>
                       <Shield className="w-3 h-3 text-purple-400 shrink-0" />
-                      <span>Data</span>
+                      <span>Data / Relay</span>
+                      <span className="text-[9px] text-purple-400/80 font-normal underline ml-0.5">Switch</span>
                     </>
                   ) : (
                     <>
                       <Zap className="w-3 h-3 text-amber-400 shrink-0" />
-                      <span>Wi-Fi</span>
+                      <span>Direct Wi-Fi</span>
+                      <span className="text-[9px] text-amber-400/80 font-normal underline ml-0.5">Switch</span>
                     </>
                   )}
-                </span>
+                </button>
               </div>
             </div>
           </div>
@@ -444,6 +493,9 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
               <a
                 href={`${getFormattedUrl(primaryStreamUrl)}${isEffectiveRelay ? "&download=1" : ""}`}
                 download
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => handleDownloadClick(e, primaryStreamUrl, primaryTitle)}
                 className="flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-neutral-800/90 hover:bg-neutral-700 text-white text-xs sm:text-sm font-bold border border-white/10 hover:border-white/20 transition min-h-[42px] active:scale-95 shadow-md cursor-pointer shrink-0"
                 title={isSeries && activeEpisode ? `Download Episode ${activeEpisode.episodeNumber}` : `Download ${movie.title} directly`}
               >
@@ -718,7 +770,12 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                             <a
                               href={`${getFormattedUrl(ep.streamUrl)}${isEffectiveRelay ? "&download=1" : ""}`}
                               download
-                              onClick={(e) => e.stopPropagation()}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadClick(e, ep.streamUrl, `${movie.title} S${activeSeasonNumber}E${ep.episodeNumber}`);
+                              }}
                               className="p-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 transition flex items-center justify-center min-w-[28px] min-h-[28px] cursor-pointer"
                               title={`Download Episode ${ep.episodeNumber} (${ep.fileSize || "Video"})`}
                             >
@@ -795,6 +852,9 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
                       <a
                         href={`${getFormattedUrl(stream.streamUrl)}${isEffectiveRelay ? "&download=1" : ""}`}
                         download
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => handleDownloadClick(e, stream.streamUrl, stream.fileName || movie.title)}
                         className="p-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 transition flex items-center justify-center min-w-[28px] min-h-[28px] cursor-pointer"
                         title={`Download ${stream.fileName || movie.title}`}
                       >
@@ -822,6 +882,15 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
             </div>
           )}
         </div>
+
+        {/* Floating Toast Notification */}
+        {modalToast && (
+          <div className="absolute bottom-4 left-4 right-4 z-40 flex justify-center pointer-events-none animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div className="bg-neutral-900/95 border border-white/20 text-white text-xs font-medium px-4 py-2.5 rounded-xl shadow-2xl backdrop-blur-md max-w-md text-center">
+              {modalToast}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* YouTube Trailer Web Player Overlay */}
