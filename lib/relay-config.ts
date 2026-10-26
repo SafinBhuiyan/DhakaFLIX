@@ -326,3 +326,33 @@ export function formatStreamUrl(streamUrl: string, forceRelay?: boolean): string
   // Fallback: if relay is configured and BDIX is unreachable, wrap with relay
   return buildRelayUrl(relay, canonicalUrl);
 }
+
+/**
+ * Generates a direct browser download URL that triggers an immediate file download
+ * without being blocked by Chrome mixed-content security policies.
+ * 
+ * On HTTPS sites (e.g. https://dhaka-flix-green.vercel.app), raw http://172.16.50.x downloads
+ * are strictly blocked by modern mobile browsers. This function routes through the secure HTTPS relay
+ * with download=1 and attachment headers so the browser downloads the file directly to the device.
+ */
+export function getDirectDownloadUrl(streamUrl: string): string {
+  if (!streamUrl || typeof streamUrl !== "string") return "";
+  const canonicalUrl = unwrapStreamUrl(streamUrl);
+  if (!canonicalUrl) return "";
+
+  const isDirectBdix = /^https?:\/\/172\.16\.50\./i.test(canonicalUrl.trim());
+  if (!isDirectBdix) return canonicalUrl;
+
+  const relay = getRelayUrl();
+  const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
+
+  // On HTTPS web deployments (or when relay is active):
+  // Chrome blocks http:// file downloads from https:// origins.
+  // We route through the secure HTTPS relay to ensure the browser actually downloads the file.
+  if (relay && (isHttps || isRelayEnabled())) {
+    const formatted = buildRelayUrl(relay, canonicalUrl);
+    return `${formatted}${formatted.includes("?") ? "&" : "?"}download=1`;
+  }
+
+  return canonicalUrl;
+}

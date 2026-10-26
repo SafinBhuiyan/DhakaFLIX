@@ -33,6 +33,7 @@ import { playInVlc } from "@/lib/vlc-player";
 import { isInWatchlist, toggleWatchlist } from "@/lib/user-store";
 import {
   formatStreamUrl,
+  getDirectDownloadUrl,
   getRelayUrl,
   getNetworkMode,
   setNetworkMode,
@@ -211,24 +212,10 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
 
   const handleDownloadClick = (
     e: React.MouseEvent<HTMLAnchorElement>,
-    streamUrl: string,
     title: string
   ) => {
-    const formatted = getFormattedUrl(streamUrl);
-    const finalDownloadUrl = isEffectiveRelay
-      ? `${formatted}${formatted.includes("?") ? "&" : "?"}download=1`
-      : formatted;
-
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(finalDownloadUrl);
-      }
-    } catch {}
-
     showToast({
-      text: isEffectiveRelay
-        ? `Downloading "${title}"... Direct link copied for 1DM/ADM!`
-        : `Downloading "${title}"... Direct link copied! If download stalls, tap the network badge to switch to Relay.`,
+      text: `Starting download for "${title}"... Check your browser downloads.`,
       type: "success",
     });
   };
@@ -785,11 +772,9 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
               {/* Direct Download Video Button */}
               {primaryStreamUrl && (!isSeries || activeEpisode) && (
                 <a
-                  href={`${getFormattedUrl(primaryStreamUrl)}${isEffectiveRelay ? "&download=1" : ""}`}
+                  href={getDirectDownloadUrl(primaryStreamUrl)}
                   download
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => handleDownloadClick(e, primaryStreamUrl, primaryTitle)}
+                  onClick={(e) => handleDownloadClick(e, primaryTitle)}
                   className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 sm:px-6 py-3.5 rounded-xl bg-neutral-800/90 hover:bg-neutral-700 text-white text-sm font-bold border border-white/10 hover:border-white/20 transition min-h-[48px] active:scale-95 shadow-lg shadow-black/40 cursor-pointer shrink-0"
                   title={
                     isSeries && activeEpisode
@@ -1115,13 +1100,14 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
 
                           {/* Direct Video Download */}
                           <a
-                            href={`${getFormattedUrl(ep.streamUrl)}${isEffectiveRelay ? "&download=1" : ""}`}
+                            href={getDirectDownloadUrl(ep.streamUrl)}
                             download
-                            target="_blank"
-                            rel="noopener noreferrer"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDownloadClick(e, ep.streamUrl, `${movie.title} S${activeSeasonNumber}E${ep.episodeNumber}`);
+                              showToast({
+                                text: `Starting download for Episode ${ep.episodeNumber}...`,
+                                type: "success",
+                              });
                             }}
                             className="p-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 transition flex items-center justify-center min-w-[30px] min-h-[30px] cursor-pointer"
                             title={`Download Episode ${ep.episodeNumber} (${ep.fileSize || "Video"})`}

@@ -85,7 +85,17 @@ function streamVideo(targetUrl, req, res) {
         }
 
         const isDownload = req.url.includes('download=1');
-        const disposition = isDownload ? 'attachment' : 'inline';
+        let disposition = 'inline';
+        if (isDownload) {
+          let fileName = 'video.mp4';
+          try {
+            const rawPath = req.url.split('?')[0].split('/').pop() || '';
+            const decoded = decodeURIComponent(rawPath).trim();
+            if (decoded) fileName = decoded;
+          } catch {}
+          const safeAscii = fileName.replace(/[^a-zA-Z0-9_\-\. ]/g, '_');
+          disposition = `attachment; filename="${safeAscii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+        }
 
         const responseHeaders = {
           'Access-Control-Allow-Origin': '*',

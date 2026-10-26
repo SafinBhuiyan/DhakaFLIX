@@ -25,6 +25,7 @@ import { VlcIcon } from "@/components/vlc-icon";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import {
   formatStreamUrl,
+  getDirectDownloadUrl,
   getRelayUrl,
   getNetworkMode,
   setNetworkMode,
@@ -111,27 +112,9 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
 
   const handleDownloadClick = (
     e: React.MouseEvent<HTMLAnchorElement>,
-    streamUrl: string,
     title: string
   ) => {
-    const formatted = getFormattedUrl(streamUrl);
-    const finalDownloadUrl = isEffectiveRelay
-      ? `${formatted}${formatted.includes("?") ? "&" : "?"}download=1`
-      : formatted;
-
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(finalDownloadUrl);
-        setCopiedUrl(finalDownloadUrl);
-        setTimeout(() => setCopiedUrl(null), 2500);
-      }
-    } catch {}
-
-    setModalToast(
-      isEffectiveRelay
-        ? `Downloading "${title}"... Direct link copied for 1DM/ADM!`
-        : `Downloading "${title}"... Direct link copied! If download stalls, tap network badge to switch to Relay.`
-    );
+    setModalToast(`Starting download for "${title}"... Check your browser downloads.`);
     setTimeout(() => setModalToast(null), 4000);
   };
 
@@ -491,11 +474,9 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
             {/* Direct Download Video Button */}
             {primaryStreamUrl && (!isSeries || activeEpisode) && (
               <a
-                href={`${getFormattedUrl(primaryStreamUrl)}${isEffectiveRelay ? "&download=1" : ""}`}
+                href={getDirectDownloadUrl(primaryStreamUrl)}
                 download
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => handleDownloadClick(e, primaryStreamUrl, primaryTitle)}
+                onClick={(e) => handleDownloadClick(e, primaryTitle)}
                 className="flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-neutral-800/90 hover:bg-neutral-700 text-white text-xs sm:text-sm font-bold border border-white/10 hover:border-white/20 transition min-h-[42px] active:scale-95 shadow-md cursor-pointer shrink-0"
                 title={isSeries && activeEpisode ? `Download Episode ${activeEpisode.episodeNumber}` : `Download ${movie.title} directly`}
               >
@@ -768,13 +749,12 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
 
                             {/* Direct Video Download */}
                             <a
-                              href={`${getFormattedUrl(ep.streamUrl)}${isEffectiveRelay ? "&download=1" : ""}`}
+                              href={getDirectDownloadUrl(ep.streamUrl)}
                               download
-                              target="_blank"
-                              rel="noopener noreferrer"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDownloadClick(e, ep.streamUrl, `${movie.title} S${activeSeasonNumber}E${ep.episodeNumber}`);
+                                setModalToast(`Starting download for Episode ${ep.episodeNumber}...`);
+                                setTimeout(() => setModalToast(null), 3500);
                               }}
                               className="p-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 transition flex items-center justify-center min-w-[28px] min-h-[28px] cursor-pointer"
                               title={`Download Episode ${ep.episodeNumber} (${ep.fileSize || "Video"})`}
@@ -850,11 +830,12 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
 
                     <div className="flex items-center gap-1.5 shrink-0">
                       <a
-                        href={`${getFormattedUrl(stream.streamUrl)}${isEffectiveRelay ? "&download=1" : ""}`}
+                        href={getDirectDownloadUrl(stream.streamUrl)}
                         download
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => handleDownloadClick(e, stream.streamUrl, stream.fileName || movie.title)}
+                        onClick={() => {
+                          setModalToast(`Starting download for ${stream.fileName || movie.title}...`);
+                          setTimeout(() => setModalToast(null), 3500);
+                        }}
                         className="p-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 transition flex items-center justify-center min-w-[28px] min-h-[28px] cursor-pointer"
                         title={`Download ${stream.fileName || movie.title}`}
                       >
