@@ -93,6 +93,18 @@ export function MovieDetailsView({ initialMovie, id }: MovieDetailsViewProps) {
     checkDirectBdixAccess().then((direct) => {
       setIsBdixDirect(direct);
     });
+
+    const nav = typeof navigator !== "undefined" ? (navigator as any) : null;
+    const conn = nav?.connection || nav?.mozConnection || nav?.webkitConnection;
+    const handleNetChange = () => {
+      checkDirectBdixAccess(true).then((direct) => {
+        setIsBdixDirect(direct);
+      });
+    };
+    if (conn && typeof conn.addEventListener === "function") {
+      conn.addEventListener("change", handleNetChange);
+      return () => conn.removeEventListener("change", handleNetChange);
+    }
   }, [id]);
 
   const toggleNetworkMode = () => {

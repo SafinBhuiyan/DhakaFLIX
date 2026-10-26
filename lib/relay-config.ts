@@ -10,7 +10,20 @@ export type NetworkMode = "auto" | "direct" | "relay";
 
 // In-memory cache for BDIX reachability check (avoids redundant network probes)
 let cachedDirectBdixStatus: { reachable: boolean; timestamp: number } | null = null;
-const CACHE_TTL_MS = 60 * 1000; // 1 minute cache
+const CACHE_TTL_MS = 30 * 1000; // 30 seconds cache
+
+// Listen to network interface changes (e.g. switching between Wi-Fi and Cellular)
+if (typeof window !== "undefined") {
+  try {
+    const nav = navigator as any;
+    const connection = nav?.connection || nav?.mozConnection || nav?.webkitConnection;
+    if (connection && typeof connection.addEventListener === "function") {
+      connection.addEventListener("change", () => {
+        cachedDirectBdixStatus = null;
+      });
+    }
+  } catch {}
+}
 
 export function unwrapStreamUrl(url: string): string {
   if (!url || typeof url !== "string") return "";
@@ -161,46 +174,43 @@ export async function checkDirectBdixAccess(forceCheck = false): Promise<boolean
     host.startsWith("10.") ||
     host.startsWith("172.16.");
 
-  // If running via a public tunnel (trycloudflare/ngrok), the user is accessing remotely via Mobile Data
+  // 1. If running via a public tunnel (trycloudflare/ngrok), the user is accessing remotely via Mobile Data
   if (host.endsWith("trycloudflare.com") || host.includes("ngrok")) {
     cachedDirectBdixStatus = { reachable: false, timestamp: Date.now() };
     return false;
   }
 
-  // If accessed via local LAN IP (e.g. http://192.168.10.112:3000), client is on Home Wi-Fi
+  // 2. If accessed via local LAN IP (e.g. http://192.168.10.112:3000), client is on Home Wi-Fi
   if (isLocalNetwork) {
     cachedDirectBdixStatus = { reachable: true, timestamp: Date.now() };
     return true;
   }
 
-  // If accessed over HTTPS (e.g. Vercel deployment on home Wi-Fi), browser mixed content
-  // blocks client-side fetch() to http://172.16.50.4, BUT external player (VLC on Android/iOS)
-  // can directly stream HTTP BDIX without mixed content restrictions!
-  if (window.location.protocol === "https:") {
-    cachedDirectBdixStatus = { reachable: true, timestamp: Date.now() };
-    return true;
-  }
-
+  // 3. Network Information API (Android Chrome, Edge, Samsung Internet, Brave)
+  // Directly detects whether the mobile device is currently on 4G/5G Cellular data vs Home Wi-Fi
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 1200);
+    const nav = navigator as any;
+    const connection = nav?.connection || nav?.mozConnection || nav?.webkitConnection;
+    if (connection && typeof connection.type === "string") {
+      if (connection.type === "cellular") {
+        // Active 4G/5G Mobile Data: BDIX is unroutable, automatically use Relay!
+        cachedDirectBdixStatus = { reachable: false, timestamp: Date.now() };
+        return false;
+      }
+      if (connection.type === "wifi" || connection.type === "ethernet") {
+        // Active Home Wi-Fi / Ethernet: BDIX direct access available!
+        cachedDirectBdixStatus = { reachable: true, timestamp: Date.now() };
+        return true;
+      }
+    }
+  } catch {}
 
-    // Strict no-cors fetch probe on HTTP:
-    // On Wi-Fi: 172.16.50.4 responds in <50ms, fetch resolves opaque response.
-    // On Mobile Data: 172.16.50.x is not routed, carrier rejects or times out, fetch throws.
-    await fetch("http://172.16.50.4/favicon.ico", {
-      mode: "no-cors",
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-
-    cachedDirectBdixStatus = { reachable: true, timestamp: Date.now() };
-    return true;
-  } catch {
-    cachedDirectBdixStatus = { reachable: false, timestamp: Date.now() };
-    return false;
-  }
+  // 4. Fallback for browsers without Network Information API:
+  // If a verified helper relay is configured, assume remote/cellular safety on HTTPS.
+  // Otherwise, default to direct BDIX.
+  const hasRelay = Boolean(getRelayUrl());
+  cachedDirectBdixStatus = { reachable: !hasRelay, timestamp: Date.now() };
+  return !hasRelay;
 }
 
 export async function checkRelayHealth(url?: string): Promise<boolean> {
