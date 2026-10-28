@@ -21,6 +21,16 @@ export async function searchModularCatalog(query: string, maxResults = 36): Prom
   const cleanQ = query.trim().toLowerCase();
   if (!cleanQ) return [];
 
+  const tokens = cleanQ.split(/\s+/).filter(Boolean);
+  const isMatch = (item: any): boolean => {
+    const t = (item.title || "").toLowerCase();
+    const r = (item.rawName || "").toLowerCase();
+    const y = String(item.year || "");
+    const combined = `${t} ${r} ${y}`;
+    if (combined.includes(cleanQ)) return true;
+    return tokens.every((tok) => combined.includes(tok));
+  };
+
   const results: any[] = [];
   const seen = new Set<string>();
 
@@ -31,13 +41,9 @@ export async function searchModularCatalog(query: string, maxResults = 36): Prom
       for (const item of sec.items || []) {
         const idKey = item.id || item.serverUrl;
         if (seen.has(idKey)) continue;
-        if (
-          item.title?.toLowerCase().includes(cleanQ) ||
-          item.rawName?.toLowerCase().includes(cleanQ)
-        ) {
+        if (isMatch(item)) {
           seen.add(idKey);
           results.push(item);
-          if (results.length >= maxResults) return results;
         }
       }
     }
@@ -51,18 +57,40 @@ export async function searchModularCatalog(query: string, maxResults = 36): Prom
     for (const item of catalog.items) {
       const idKey = item.id || item.serverUrl;
       if (seen.has(idKey)) continue;
-      if (
-        item.title?.toLowerCase().includes(cleanQ) ||
-        item.rawName?.toLowerCase().includes(cleanQ)
-      ) {
+      if (isMatch(item)) {
         seen.add(idKey);
         results.push(item);
-        if (results.length >= maxResults) return results;
+        if (results.length >= maxResults * 2) break;
       }
     }
+    if (results.length >= maxResults * 2) break;
   }
 
-  return results;
+  // Rank exact title matches and prefix matches to the top
+  results.sort((a, b) => {
+    const aTitle = (a.title || "").toLowerCase();
+    const bTitle = (b.title || "").toLowerCase();
+
+    const aExact = aTitle === cleanQ;
+    const bExact = bTitle === cleanQ;
+    if (aExact && !bExact) return -1;
+    if (!aExact && bExact) return 1;
+
+    const aStarts = aTitle.startsWith(cleanQ);
+    const bStarts = bTitle.startsWith(cleanQ);
+    if (aStarts && !bStarts) return -1;
+    if (!aStarts && bStarts) return 1;
+
+    // Prioritize items with HD posters
+    const aHasPoster = Boolean(a.poster && !a.poster.endsWith("a_AL_.jpg"));
+    const bHasPoster = Boolean(b.poster && !b.poster.endsWith("a_AL_.jpg"));
+    if (aHasPoster && !bHasPoster) return -1;
+    if (!aHasPoster && bHasPoster) return 1;
+
+    return 0;
+  });
+
+  return results.slice(0, maxResults);
 }
 
 /**
