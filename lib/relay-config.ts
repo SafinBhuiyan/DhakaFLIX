@@ -2,7 +2,7 @@
 // Intelligently detects whether user has direct BDIX access (Home Wi-Fi)
 // or requires Helper Relay (Mobile Data / Off-network).
 
-const DEFAULT_RELAY_URL = "https://coating-zoloft-express-funeral.trycloudflare.com";
+const DEFAULT_RELAY_URL = "https://homelab-1.tail4054ff.ts.net";
 const STORAGE_KEY_URL = "dhakaflix_helper_url";
 const STORAGE_KEY_MODE = "dhakaflix_network_mode"; // "auto" | "direct" | "relay"
 
@@ -61,7 +61,7 @@ export function getRelayUrl(): string {
         const urlParam = params.get("relay");
         if (urlParam && /^https?:\/\//i.test(urlParam)) {
           const cleanParam = urlParam.trim().replace(/\/+$/, "");
-          if (!cleanParam.includes("pole-mean-rent-pursuit") && !cleanParam.includes("traveling-present-snap-divx")) {
+          if (!cleanParam.includes("trycloudflare.com") && !cleanParam.includes("pole-mean-rent-pursuit")) {
             localStorage.setItem(STORAGE_KEY_URL, cleanParam);
             // Cleanly remove ?relay= from browser address bar
             const cleanUrl = new URL(window.location.href);
@@ -85,7 +85,7 @@ export function getRelayUrl(): string {
     if (custom && custom.trim()) {
       const clean = custom.trim().replace(/\/+$/, "");
       // Purge old expired quick tunnels
-      if (clean.includes("pole-mean-rent-pursuit") || clean.includes("traveling-present-snap-divx")) {
+      if (clean.includes("trycloudflare.com") || clean.includes("pole-mean-rent-pursuit")) {
         localStorage.removeItem(STORAGE_KEY_URL);
       } else {
         return clean;
@@ -95,7 +95,7 @@ export function getRelayUrl(): string {
 
   // 3. Environment variable fallback or permanent homelab relay
   const envUrl = (process.env.NEXT_PUBLIC_HELPER_RELAY_URL || DEFAULT_RELAY_URL).trim().replace(/\/+$/, "");
-  if (envUrl.includes("pole-mean-rent-pursuit") || envUrl.includes("traveling-present-snap-divx") || envUrl.includes("tail4054ff.ts.net")) {
+  if (envUrl.includes("trycloudflare.com") || envUrl.includes("pole-mean-rent-pursuit")) {
     return DEFAULT_RELAY_URL;
   }
   return envUrl || DEFAULT_RELAY_URL;
@@ -104,7 +104,7 @@ export function getRelayUrl(): string {
 export function setRelayUrl(url: string): void {
   if (typeof window === "undefined") return;
   const clean = url.trim().replace(/\/+$/, "");
-  if (!clean || clean.includes("pole-mean-rent-pursuit") || clean.includes("tail4054ff.ts.net")) {
+  if (!clean || clean.includes("trycloudflare.com") || clean.includes("pole-mean-rent-pursuit")) {
     localStorage.removeItem(STORAGE_KEY_URL);
   } else {
     localStorage.setItem(STORAGE_KEY_URL, clean);
