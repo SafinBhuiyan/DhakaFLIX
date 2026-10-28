@@ -12,6 +12,21 @@ export type NetworkMode = "auto" | "direct" | "relay";
 let cachedDirectBdixStatus: { reachable: boolean; timestamp: number } | null = null;
 const CACHE_TTL_MS = 30 * 1000; // 30 seconds cache
 
+// In-memory dynamic relay URL synced from server heartbeat
+let dynamicRelayUrl: string | null = null;
+
+// Background auto-sync of live active relay from server heartbeat
+if (typeof window !== "undefined") {
+  fetch('/api/relay/active')
+    .then((r) => r.json())
+    .then((data) => {
+      if (data.ok && data.relayUrl) {
+        dynamicRelayUrl = data.relayUrl.trim().replace(/\/+$/, "");
+      }
+    })
+    .catch(() => {});
+}
+
 // Listen to network interface changes (e.g. switching between Wi-Fi and Cellular)
 if (typeof window !== "undefined") {
   try {
@@ -23,6 +38,22 @@ if (typeof window !== "undefined") {
       });
     }
   } catch {}
+}
+
+export async function syncActiveRelay(): Promise<string> {
+  if (dynamicRelayUrl) return dynamicRelayUrl;
+  if (typeof window !== "undefined") {
+    try {
+      const res = await fetch('/api/relay/active');
+      const data = await res.json();
+      if (data && data.ok && typeof data.relayUrl === "string" && data.relayUrl) {
+        const clean = data.relayUrl.trim().replace(/\/+$/, "");
+        dynamicRelayUrl = clean;
+        return clean;
+      }
+    } catch {}
+  }
+  return getRelayUrl();
 }
 
 export function unwrapStreamUrl(url: string): string {
@@ -52,6 +83,11 @@ export function unwrapStreamUrl(url: string): string {
 }
 
 export function getRelayUrl(): string {
+  // If dynamic relay has been discovered from server heartbeat, prioritize it
+  if (dynamicRelayUrl) {
+    return dynamicRelayUrl;
+  }
+
   if (typeof window !== "undefined") {
     // 0. Auto-capture relay parameter from query string if user clicked an active relay link:
     // e.g. https://dhaka-flix-green.vercel.app/?relay=https://xxxx.trycloudflare.com

@@ -25,6 +25,7 @@ import { VlcIcon } from "@/components/vlc-icon";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import {
   formatStreamUrl,
+  syncActiveRelay,
   getDirectDownloadUrl,
   getRelayUrl,
   getNetworkMode,
@@ -86,6 +87,7 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
 
   useEffect(() => {
     setHasRelayUrl(Boolean(getRelayUrl()));
+    syncActiveRelay().catch(() => {});
     checkDirectBdixAccess().then((direct) => {
       setIsBdixDirect(direct);
     });
@@ -145,6 +147,7 @@ export function StreamModal({ movie, onClose, onPlayVlc }: StreamModalProps) {
     setTrailerOpen(false);
     setTrailerData(null);
 
+    syncActiveRelay().catch(() => {});
     checkDirectBdixAccess().then((direct) => {
       setIsBdixDirect(direct);
     });

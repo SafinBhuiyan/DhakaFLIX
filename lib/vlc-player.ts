@@ -1,6 +1,6 @@
 "use client";
 
-import { formatStreamUrl, checkDirectBdixAccess, getNetworkMode } from "@/lib/relay-config";
+import { formatStreamUrl, checkDirectBdixAccess, getNetworkMode, syncActiveRelay } from "@/lib/relay-config";
 import { addToWatchHistory, WatchHistoryItem } from "@/lib/user-store";
 import { CatalogMovie } from "@/app/api/dhakaflix/catalog/route";
 
@@ -48,6 +48,9 @@ export async function playInVlc({
   if (getNetworkMode() === "auto") {
     await checkDirectBdixAccess();
   }
+
+  // Ensure freshest live relay URL is synced from server
+  await syncActiveRelay();
 
   // Format URL through Helper Relay if enabled (for mobile data / off-network access)
   let validUrl = formatStreamUrl(streamUrl);
