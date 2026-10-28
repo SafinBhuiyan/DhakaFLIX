@@ -506,18 +506,39 @@ export async function getShowEpisodes(
     const catalogItem = await findTvSeriesItem(folderUrl, title);
     if (catalogItem?.seasons && Array.isArray(catalogItem.seasons) && catalogItem.seasons.length > 0) {
       // Find TMDb Show ID to enrich episode metadata (names, overviews, still thumbnails)
-      let tmdbShowId: number | null = null;
-      try {
-        const cleanTitle = title.replace(/[\(\[]?TV\s+(?:Mini\s+)?Series[^\)\]]*[\)\]]?/i, "").trim();
-        const tmdbRes = await fetch(
-          `${TMDB_SERIES_BASE}/search/tv?api_key=${TMDB_SERIES_API_KEY}&query=${encodeURIComponent(cleanTitle)}`,
-          { signal: AbortSignal.timeout(3000) }
-        );
-        if (tmdbRes.ok) {
-          const tmdbData = await tmdbRes.json();
-          tmdbShowId = tmdbData.results?.[0]?.id || null;
-        }
-      } catch {}
+      let tmdbShowId: number | null = catalogItem.tmdbId || null;
+      if (!tmdbShowId) {
+        try {
+          const cleanTitle = title.replace(/[\(\[]?TV\s+(?:Mini\s+)?Series[^\)\]]*[\)\]]?/i, "").trim();
+          const targetYear = year || catalogItem.year;
+          let url = `${TMDB_SERIES_BASE}/search/tv?api_key=${TMDB_SERIES_API_KEY}&query=${encodeURIComponent(cleanTitle)}`;
+          if (targetYear) {
+            url += `&first_air_date_year=${targetYear}`;
+          }
+          let tmdbRes = await fetch(url, { signal: AbortSignal.timeout(3000) });
+          let tmdbData = tmdbRes.ok ? await tmdbRes.json() : null;
+          let results: any[] = tmdbData?.results || [];
+
+          if (results.length === 0 && targetYear) {
+            const fallbackRes = await fetch(
+              `${TMDB_SERIES_BASE}/search/tv?api_key=${TMDB_SERIES_API_KEY}&query=${encodeURIComponent(cleanTitle)}`,
+              { signal: AbortSignal.timeout(3000) }
+            );
+            if (fallbackRes.ok) {
+              const fbData = await fallbackRes.json();
+              results = fbData?.results || [];
+            }
+          }
+
+          const cleanLower = cleanTitle.toLowerCase();
+          const exactMatch = results.find(
+            (r: any) =>
+              (r.name && r.name.toLowerCase() === cleanLower) ||
+              (r.original_name && r.original_name.toLowerCase() === cleanLower)
+          );
+          tmdbShowId = exactMatch?.id || results[0]?.id || null;
+        } catch {}
+      }
 
       // Map verified real seasons and episodes, merging TMDb episode details if available
       const realSeasons: DhakaSeason[] = await Promise.all(
@@ -600,9 +621,16 @@ export async function getShowEpisodes(
           );
           if (tmdbRes.ok) {
             const tmdbData = await tmdbRes.json();
-            const firstShow = (tmdbData.results || [])[0];
-            if (firstShow?.id) {
-              tmdbShowId = firstShow.id;
+            const results = tmdbData.results || [];
+            const cleanLower = cleanTitle.toLowerCase();
+            const exactMatch = results.find(
+              (r: any) =>
+                (r.name && r.name.toLowerCase() === cleanLower) ||
+                (r.original_name && r.original_name.toLowerCase() === cleanLower)
+            );
+            const show = exactMatch || results[0];
+            if (show?.id) {
+              tmdbShowId = show.id;
             }
           }
         } catch {}
@@ -617,9 +645,16 @@ export async function getShowEpisodes(
           );
           if (tmdbRes.ok) {
             const tmdbData = await tmdbRes.json();
-            const firstShow = (tmdbData.results || [])[0];
-            if (firstShow?.id) {
-              tmdbShowId = firstShow.id;
+            const results = tmdbData.results || [];
+            const cleanLower = cleanTitle.toLowerCase();
+            const exactMatch = results.find(
+              (r: any) =>
+                (r.name && r.name.toLowerCase() === cleanLower) ||
+                (r.original_name && r.original_name.toLowerCase() === cleanLower)
+            );
+            const show = exactMatch || results[0];
+            if (show?.id) {
+              tmdbShowId = show.id;
             }
           }
         } catch {}
