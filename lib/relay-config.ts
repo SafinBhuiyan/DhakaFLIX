@@ -5,6 +5,7 @@
 const DEFAULT_RELAY_URL = "https://homelab-1.tail4054ff.ts.net";
 const STORAGE_KEY_URL = "dhakaflix_helper_url";
 const STORAGE_KEY_MODE = "dhakaflix_network_mode"; // "auto" | "direct" | "relay"
+const SESSION_KEY_RELAY = "dhakaflix_session_relay";
 
 export type NetworkMode = "auto" | "direct" | "relay";
 
@@ -12,15 +13,15 @@ export type NetworkMode = "auto" | "direct" | "relay";
 let cachedDirectBdixStatus: { reachable: boolean; timestamp: number } | null = null;
 const CACHE_TTL_MS = 30 * 1000; // 30 seconds cache
 
-// In-memory dynamic relay URL synced from server heartbeat
+// In-memory dynamic relay URL synced from server
 let dynamicRelayUrl: string | null = null;
 
-// Background auto-sync of live active relay from server heartbeat
+// Background auto-sync of live active relay
 if (typeof window !== "undefined") {
   fetch('/api/relay/active')
     .then((r) => r.json())
     .then((data) => {
-      if (data.ok && data.relayUrl) {
+      if (data && data.ok && typeof data.relayUrl === "string" && data.relayUrl) {
         dynamicRelayUrl = data.relayUrl.trim().replace(/\/+$/, "");
       }
     })
@@ -41,10 +42,19 @@ if (typeof window !== "undefined") {
 }
 
 export async function syncActiveRelay(): Promise<string> {
-  if (dynamicRelayUrl) return dynamicRelayUrl;
   if (typeof window !== "undefined") {
+    // 1. If explicit relay was passed in query parameter or saved in session, use it
     try {
-      const res = await fetch('/api/relay/active');
+      const sessionUrl = sessionStorage.getItem(SESSION_KEY_RELAY);
+      if (sessionUrl && /^https?:\/\//i.test(sessionUrl)) {
+        dynamicRelayUrl = sessionUrl;
+        return sessionUrl;
+      }
+    } catch {}
+
+    // 2. Query Vercel active relay API
+    try {
+      const res = await fetch('/api/relay/active', { cache: 'no-store' });
       const data = await res.json();
       if (data && data.ok && typeof data.relayUrl === "string" && data.relayUrl) {
         const clean = data.relayUrl.trim().replace(/\/+$/, "");
@@ -52,7 +62,23 @@ export async function syncActiveRelay(): Promise<string> {
         return clean;
       }
     } catch {}
+
+    // 3. Fallback: Direct client fetch to permanent homelab domain
+    try {
+      const homelabRes = await fetch(`${DEFAULT_RELAY_URL}/active-relay`, {
+        signal: AbortSignal.timeout(3500),
+      });
+      if (homelabRes.ok) {
+        const hData = await homelabRes.json();
+        if (hData && hData.ok && typeof hData.relayUrl === "string" && hData.relayUrl) {
+          const clean = hData.relayUrl.trim().replace(/\/+$/, "");
+          dynamicRelayUrl = clean;
+          return clean;
+        }
+      }
+    } catch {}
   }
+
   return getRelayUrl();
 }
 
@@ -83,11 +109,6 @@ export function unwrapStreamUrl(url: string): string {
 }
 
 export function getRelayUrl(): string {
-  // If dynamic relay has been discovered from server heartbeat, prioritize it
-  if (dynamicRelayUrl) {
-    return dynamicRelayUrl;
-  }
-
   if (typeof window !== "undefined") {
     // 0. Auto-capture relay parameter from query string if user clicked an active relay link:
     // e.g. https://dhaka-flix-green.vercel.app/?relay=https://xxxx.trycloudflare.com
@@ -97,43 +118,53 @@ export function getRelayUrl(): string {
         const urlParam = params.get("relay");
         if (urlParam && /^https?:\/\//i.test(urlParam)) {
           const cleanParam = urlParam.trim().replace(/\/+$/, "");
-          if (!cleanParam.includes("trycloudflare.com") && !cleanParam.includes("pole-mean-rent-pursuit")) {
-            localStorage.setItem(STORAGE_KEY_URL, cleanParam);
-            // Cleanly remove ?relay= from browser address bar
-            const cleanUrl = new URL(window.location.href);
-            cleanUrl.searchParams.delete("relay");
-            window.history.replaceState({}, "", cleanUrl.pathname + (cleanUrl.search || ""));
-            return cleanParam;
-          }
+          sessionStorage.setItem(SESSION_KEY_RELAY, cleanParam);
+          dynamicRelayUrl = cleanParam;
+
+          // Cleanly remove ?relay= from browser address bar without reload
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete("relay");
+          window.history.replaceState({}, "", cleanUrl.pathname + (cleanUrl.search || ""));
+          return cleanParam;
         }
       } catch {}
     }
 
-    // 1. If currently loaded through a Cloudflare tunnel or ngrok,
-    // the current browser origin IS automatically the active relay!
+    // 1. Session active relay
+    try {
+      const sessionUrl = sessionStorage.getItem(SESSION_KEY_RELAY);
+      if (sessionUrl && /^https?:\/\//i.test(sessionUrl)) {
+        return sessionUrl;
+      }
+    } catch {}
+
+    // 2. If currently loaded directly through a Cloudflare tunnel origin
     const host = window.location.hostname.toLowerCase();
     if (host.endsWith("trycloudflare.com") || host.includes("ngrok")) {
       return window.location.origin.replace(/\/+$/, "");
     }
+  }
 
-    // 2. Custom override from localStorage
-    const custom = localStorage.getItem(STORAGE_KEY_URL);
-    if (custom && custom.trim()) {
-      const clean = custom.trim().replace(/\/+$/, "");
-      // Purge old expired quick tunnels
-      if (clean.includes("trycloudflare.com") || clean.includes("pole-mean-rent-pursuit")) {
-        localStorage.removeItem(STORAGE_KEY_URL);
-      } else {
-        return clean;
+  // 3. Dynamic relay synced from server
+  if (dynamicRelayUrl) {
+    return dynamicRelayUrl;
+  }
+
+  if (typeof window !== "undefined") {
+    // 4. Custom override from localStorage
+    try {
+      const custom = localStorage.getItem(STORAGE_KEY_URL);
+      if (custom && custom.trim()) {
+        const clean = custom.trim().replace(/\/+$/, "");
+        if (!clean.includes("pole-mean-rent-pursuit")) {
+          return clean;
+        }
       }
-    }
+    } catch {}
   }
 
-  // 3. Environment variable fallback or permanent homelab relay
+  // 5. Permanent homelab fallback
   const envUrl = (process.env.NEXT_PUBLIC_HELPER_RELAY_URL || DEFAULT_RELAY_URL).trim().replace(/\/+$/, "");
-  if (envUrl.includes("trycloudflare.com") || envUrl.includes("pole-mean-rent-pursuit")) {
-    return DEFAULT_RELAY_URL;
-  }
   return envUrl || DEFAULT_RELAY_URL;
 }
 
